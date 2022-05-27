@@ -30,8 +30,8 @@ def pebi_grid_2D(
                     'dict[str, dict[str, float]]',
                     'dict[Any, dict[str, Iterable]]'] = None,
         face_constraint_factor: float = 1/3,
-        min_threshold_distance: float = 0.05,
-        max_threshold_distance: float = 0.2,
+        min_FC_threshold_distance: float = 0.05,
+        max_FC_threshold_distance: float = 0.2,
         face_intersection_factor: float = None,
         min_intersection_distance: float = None,
         max_intersection_distance: float = None,
@@ -45,6 +45,9 @@ def pebi_grid_2D(
         cell_constraint_factor: float = 1/4,
         cell_constraint_line_factor: float = None,
         cell_constraint_point_factor: float = None,
+        min_CC_threshold_distance: float = 0.05,
+        max_CC_threshold_distance: float = 0.2,
+        CC_mesh_sampling: int = 100,
         mesh_algorithm: str = "Delaunay",
         recombination_algorithm: str = None,
         savename: str = "TEMP_Gmsh_MRST.m",
@@ -144,12 +147,14 @@ def pebi_grid_2D(
             face_constraint_factor * cell_dimensions. Equivalent to FCFactor in
             MRST/UPR/pebiGrid2D. Defaults to 1/3.
 
-        min_threshold_distance (float, optional): Distance from face constraints
-            where cell dimensions will start increasing. Defaults to 0.05.
+        min_FC_threshold_distance (float, optional): Distance from face
+            constraints where cell dimensions will start increasing. Defaults
+            to 0.05.
 
-        max_threshold_distance (float, optional): Distance from face constraints
-            where cell dimensions will be back to their default (max) value,
-            i.e. the supplied argument cell_dimensions. Defaults to 0.2.
+        max_FC_threshold_distance (float, optional): Distance from face
+            constraints where cell dimensions will be back to their default
+            (max) value, i.e. the supplied argument cell_dimensions. Defaults
+            to 0.2.
 
         face_intersection_factor (float, optional): The size of the cells close
             to intersections between face constraints, as compared to supplied
@@ -235,6 +240,19 @@ def pebi_grid_2D(
             set to None, cell_constraint_factor will be used for points.
             Defaults to None.
 
+        min_CC_threshold_distance (float, optional): Distance from cell
+            constraints where cell dimensions will start increasing. Defaults
+            to 0.05.
+
+        max_CC_threshold_distance (float, optional): Distance from cell
+            constraints where cell dimensions will be back to their default
+            (max) value, i.e. the supplied argument cell_dimensions. Defaults
+            to 0.2.
+
+        CC_mesh_sampling (int, optional): The number of points along the
+            cell constraints should be sampled to calculate the threshold
+            distances. Defaults to 100.
+
         mesh_algorithm (str | int, optional): What meshing algorithm should be
             used. Can either be the Gmsh-given ID of the algorithm or a string:
                 "MeshAdapt" = 1
@@ -275,9 +293,9 @@ def pebi_grid_2D(
     if face_constraints is None:
         face_constraints = []
     if min_intersection_distance is None:
-        min_intersection_distance = min_threshold_distance
+        min_intersection_distance = min_FC_threshold_distance
     if max_intersection_distance is None:
-        max_intersection_distance = max_threshold_distance
+        max_intersection_distance = max_FC_threshold_distance
     if cell_constraints is None:
         cell_constraints = []
     if cell_constraint_line_factor is None:
@@ -335,6 +353,7 @@ def pebi_grid_2D(
 
     # Create cell constraints
     cc_loops = []               # Holds line loops - used when making surface
+    cc_lines = []               # Holds lines - used when refining mesh
     cc_point_surfaces = []      # Holds surfaces around CC points
     cc_line_surfaces = []       # Holds surfaces around CC lines
     cc_point_size = cell_constraint_point_factor * cell_dimensions  # Cell size around points
@@ -343,13 +362,13 @@ def pebi_grid_2D(
         if len(line) == 1:
             # line is a single point
             create_cell_constraint_point(
-                line[0], cc_point_size, cc_loops, cc_point_surfaces
+                line[0], cc_point_size, cc_loops, cc_point_surfaces, cc_lines
             )
         
         else:
             # line has at least 1 line segment
             create_cell_constraint_line(
-                line, cc_line_size, cc_loops, cc_line_surfaces
+                line, cc_line_size, cc_loops, cc_line_surfaces, cc_lines
             )
 
     # Create curve loop of circumference
@@ -378,8 +397,8 @@ def pebi_grid_2D(
         sampling=fracture_mesh_sampling,
         min_size=face_constraint_factor * cell_dimensions,
         max_size=cell_dimensions,
-        min_distance=min_threshold_distance,
-        max_distance=max_threshold_distance
+        min_distance=min_FC_threshold_distance,
+        max_distance=max_FC_threshold_distance
     )
 
     # Add field for intersection points
@@ -398,10 +417,21 @@ def pebi_grid_2D(
         max_distance=max_intersection_distance
     )
 
+    # Refine mesh around cell constraints as well
+    cell_threshold = create_threshold_field(
+        None,
+        curve_list=cc_lines,
+        sampling=CC_mesh_sampling,
+        min_size=cc_line_size,
+        max_size=cell_dimensions,
+        min_distance=min_CC_threshold_distance,
+        max_distance=max_CC_threshold_distance,
+    )
+
     # We use the minimum of all fields as our background mesh
     min_field = gmsh.model.mesh.field.add("Min")
     gmsh.model.mesh.field.setNumbers(min_field, "FieldsList", [
-        fracture_threshold, intersection_threshold
+        fracture_threshold, intersection_threshold, cell_threshold
     ])
     gmsh.model.mesh.field.setAsBackgroundMesh(min_field)
 

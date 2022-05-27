@@ -13,7 +13,8 @@ def create_transfinite_cc_box(
         end_2,
         cc_loops: list,
         cc_line_surfaces: list,
-        parallel_line_points: int
+        parallel_line_points: int,
+        cc_lines: list
     ) -> int:
     """Create a transfinite box from the supplied points
     
@@ -26,6 +27,8 @@ def create_transfinite_cc_box(
     parallel_line_2 = gmsh.model.geo.add_line(end_2, start_1)
     # Create the end line
     end_line = gmsh.model.geo.add_line(end_1, end_2)
+
+    cc_lines.extend([parallel_line_1, parallel_line_2, end_line])
 
     # Save the curve loop, for use when creating the base surface
     curve_loop = gmsh.model.geo.add_curve_loop([
@@ -124,7 +127,8 @@ def create_fracture_point(point: tuple, intersection_IDs: dict) -> int:
 def create_cell_constraint_point(point: tuple,
                                 cc_point_size: float,
                                 cc_loops: list,
-                                cc_point_surfaces: list):
+                                cc_point_surfaces: list,
+                                cc_lines: list):
     """Handle everything needed and create transfinite "box" for CC point
 
     Args:
@@ -132,6 +136,7 @@ def create_cell_constraint_point(point: tuple,
         cc_point_size (float): The diameter of the transfinite box
         cc_loops (list): A list of CC curve loops, to append to
         cc_point_surfaces (list): A list of CC point surfaces, to append to
+        cc_lines (list): A list of CC lines, to append to
     """
     x, y = point[0], point[1]
     # Create corners around the CC point - up, down, left and right
@@ -144,6 +149,7 @@ def create_cell_constraint_point(point: tuple,
     # Create lines surrounding the CC point, i.e. between surrounding
     # points. These make up the mesh cell around the CC point
     surrounding_lines = create_circumference(surrounding_points)
+    cc_lines.extend(surrounding_lines)
 
     # Save the curve loop created
     cc_loops.append(
@@ -166,7 +172,8 @@ def create_cell_constraint_point(point: tuple,
 def create_cell_constraint_line(line: 'list[tuple]',
                                 cc_line_size: float,
                                 cc_loops: list,
-                                cc_line_surfaces: list):
+                                cc_line_surfaces: list,
+                                cc_lines: list):
     """Handle everything needed and create transfinite "box" for CC line
 
 
@@ -175,6 +182,7 @@ def create_cell_constraint_line(line: 'list[tuple]',
         cc_line_size (float): The wanted length of each line segment
         cc_loops (list): A list of CC curve loops, to append to
         cc_line_surfaces (list): A list of CC line surfaces, to append to
+        cc_lines (list): A list of CC lines, to append to
     """
     # We first handle the start, then all mid points, then the end
     # Compute the normal vector of the line from start- to next point
@@ -191,6 +199,7 @@ def create_cell_constraint_line(line: 'list[tuple]',
     start_2 = gmsh.model.geo.add_point(point_2[0], point_2[1], 0)
     # Make a start line for the polygon surrounding our CC line
     start_line = gmsh.model.geo.add_line(start_1, start_2)
+    cc_lines.append(start_line)
     # Convert the start line into a transfinite curve. We again use 2
     # transfinite points, leading to a width of 1 cell
     gmsh.model.geo.mesh.set_transfinite_curve(start_line, 2)
@@ -233,7 +242,7 @@ def create_cell_constraint_line(line: 'list[tuple]',
         end_line = create_transfinite_cc_box(
             start_1, start_2, start_line,
             end_1, end_2,
-            cc_loops, cc_line_surfaces, parallel_line_points
+            cc_loops, cc_line_surfaces, parallel_line_points, cc_lines
         )
 
         # Convert the previous end line to a new start line
@@ -266,5 +275,6 @@ def create_cell_constraint_line(line: 'list[tuple]',
     create_transfinite_cc_box(
         start_1, start_2, start_line,
         end_1, end_2,
-        cc_loops, cc_line_surfaces, parallel_line_points
+        cc_loops, cc_line_surfaces, parallel_line_points,
+        cc_lines
     )
