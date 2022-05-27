@@ -234,6 +234,25 @@ def format_recombination_algorithm(algorithm: Union[str, int]) -> int:
         )
 
 
+def format_constraint_factor(factor: Union[float, Iterable],
+                             constraint_length: int) -> list:
+    if isinstance(factor, float):
+        return [factor] * constraint_length
+    elif isinstance(factor, Iterable) and len(factor) == constraint_length:
+        return factor
+    elif isinstance(factor, Iterable):
+        raise ValueError(
+            f"Factor {factor} has wrong length. Expected length: "
+            + f"{constraint_length}. Received: {len(factor)}"
+        )
+    else:
+        raise ValueError(
+            f"Factor ({factor}) of unexpected type {type(factor)} received. "
+            + f"Expected type float or Iterable with length: {constraint_length}"
+        )
+    
+
+
 def _check_array_dict_and_return_line_list(face_constraints: dict):
     # Check that face_constraints contains column x and y
     assert_column_in_dict(face_constraints, "x")
