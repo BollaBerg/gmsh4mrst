@@ -141,15 +141,22 @@ def split_at_intersections(
                 other_start = line[other_ID]
                 other_end = line[other_ID + 1]
 
-                intersection = find_intersection(start, end, other_start, other_end)
-                if intersection is not None:
-                    intersection_IDs[intersection] = None
-                    # Insert intersection into both segments of the line
-                    line.insert(segment_ID + 1, intersection)
-                    line.insert(other_ID + 2, intersection)
+                if other_start == start or other_start == end:
+                    # The lines intersect at the start
+                    intersection_IDs[other_start] = None
+                elif other_end == start or other_end == end:
+                    # The lines intersect at the end
+                    intersection_IDs[other_end] = None
+                else:
+                    intersection = find_intersection(start, end, other_start, other_end)
+                    if intersection is not None:
+                        intersection_IDs[intersection] = None
+                        # Insert intersection into both segments of the line
+                        line.insert(segment_ID + 1, intersection)
+                        line.insert(other_ID + 2, intersection)
 
-                    # Get new segment end 
-                    end = line[segment_ID + 1]
+                        # Get new segment end 
+                        end = line[segment_ID + 1]
                 other_ID += 1
 
             # check for intersections in the other constraints
@@ -159,15 +166,22 @@ def split_at_intersections(
                     other_start = other_line[other_ID]
                     other_end = other_line[other_ID + 1]
 
-                    intersection = find_intersection(start, end, other_start, other_end)
-                    if intersection is not None:
-                        intersection_IDs[intersection] = None
-                        # Insert intersection into both segments of the line
-                        line.insert(segment_ID + 1, intersection)
-                        other_line.insert(other_ID + 1, intersection)
+                    if other_start == start or other_start == end:
+                        # The lines intersect at the start
+                        intersection_IDs[other_start] = None
+                    elif other_end == start or other_end == end:
+                        # The lines intersect at the end
+                        intersection_IDs[other_end] = None
+                    else:
+                        intersection = find_intersection(start, end, other_start, other_end)
+                        if intersection is not None:
+                            intersection_IDs[intersection] = None
+                            # Insert intersection into both segments of the line
+                            line.insert(segment_ID + 1, intersection)
+                            other_line.insert(other_ID + 1, intersection)
 
-                        # Get new segment end 
-                        end = line[segment_ID + 1]
+                            # Get new segment end 
+                            end = line[segment_ID + 1]
                     other_ID += 1
             segment_ID += 1
 
