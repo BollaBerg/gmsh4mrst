@@ -1,3 +1,4 @@
+from copy import deepcopy
 from math import atan2, sqrt, ceil
 
 
@@ -38,8 +39,9 @@ def find_intersection(line_1_start, line_1_end, line_2_start, line_2_end):
     ]
     t = cross_product(line_difference, delta_2) / cross_product(delta_1, delta_2)
     u = cross_product(line_difference, delta_1) / cross_product(delta_1, delta_2)
-    if 0 <= t <= 1 and 0 <= u <= 1:
-        return [line_1_start[0] + t * delta_1[0], line_1_start[1] + t * delta_1[1]]
+    # Set to <= to also detect corner points
+    if 0 < t < 1 and 0 < u < 1:
+        return (line_1_start[0] + t * delta_1[0], line_1_start[1] + t * delta_1[1])
     else:
         return None
 
@@ -92,3 +94,128 @@ def get_midpoint(point_1: 'tuple[float, float]',
         0.5 * (point_1[0] + point_2[0]),
         0.5 * (point_1[1] + point_2[1])
     )
+
+def split_at_intersections(
+        face_constraints: list, cell_constraints: list
+        ) -> 'tuple[list, list, dict]':
+    """Split a formatted list of constraints at their intersections
+
+    Args:
+        constraints (list): Formatted list of contraints. Must have shape:
+            [
+                [(x11, y11), (x12, y12), ...],
+                [(x21, y21), (x22, y22), ...],
+                ...
+            ]
+
+    Returns:
+        list: Formatted face constraints, but with every constraint broken
+            into non-intersecting (except possibly at the end) line segments
+        list: Formatted cell constraints, but with every constraint broken
+            into non-intersecting (except possibly at the end) line segments
+        dict: Dictionary of intersection IDs, used to avoid creating multiple
+            Gmsh points in each intersection
+    """
+    # We save intersections in a dict
+    # That way, we avoid creating multiple Gmsh point in each intersection
+    intersection_IDs = dict()
+
+    # Avoid changing the inputs
+    face_const = deepcopy(face_constraints)
+    cell_const = deepcopy(cell_constraints)
+
+    # Go through face constraints first
+    for line_id, line in enumerate(face_const):
+        if len(line) < 2:
+            # line is a point
+            continue
+        segment_ID = 0
+        while segment_ID < len(line) - 1:
+            start = line[segment_ID]         # start = (x11, y11)
+            end = line[segment_ID+1]
+            # Check for intersections in own line
+            # We only need to check "forwards", as we have already looked at
+            # the combinations behind us
+            # We naturally don't check intersections with the current segment
+            other_ID = segment_ID + 1
+            while other_ID < len(line) - 1:
+                other_start = line[other_ID]
+                other_end = line[other_ID + 1]
+
+                intersection = find_intersection(start, end, other_start, other_end)
+                if intersection is not None:
+                    intersection_IDs[intersection] = -1
+                    # Insert intersection into both segments of the line
+                    line.insert(segment_ID + 1, intersection)
+                    line.insert(other_ID + 2, intersection)
+
+                    # Get new segment end 
+                    end = line[segment_ID + 1]
+                other_ID += 1
+
+            # check for intersections in the other constraints
+            for other_line in face_const[line_id + 1:] + cell_const:
+                other_ID = 0
+                while other_ID < len(other_line) - 1:
+                    other_start = other_line[other_ID]
+                    other_end = other_line[other_ID + 1]
+
+                    intersection = find_intersection(start, end, other_start, other_end)
+                    if intersection is not None:
+                        intersection_IDs[intersection] = None
+                        # Insert intersection into both segments of the line
+                        line.insert(segment_ID + 1, intersection)
+                        other_line.insert(other_ID + 1, intersection)
+
+                        # Get new segment end 
+                        end = line[segment_ID + 1]
+                    other_ID += 1
+            segment_ID += 1
+    # Now check cell constraints against each other
+    for line_id, line in enumerate(cell_const):
+        if len(line) < 2:
+            # line is a point
+            continue
+        segment_ID = 0
+        while segment_ID < len(line) - 1:
+            start = line[segment_ID]         # start = (x11, y11)
+            end = line[segment_ID+1]
+            # Check for intersections in own line
+            # We only need to check "forwards", as we have already looked at
+            # the combinations behind us
+            # We naturally don't check intersections with the current segment
+            other_ID = segment_ID + 1
+            while other_ID < len(line) - 1:
+                other_start = line[other_ID]
+                other_end = line[other_ID + 1]
+
+                intersection = find_intersection(start, end, other_start, other_end)
+                if intersection is not None:
+                    intersection_IDs[intersection] = None
+                    # Insert intersection into both segments of the line
+                    line.insert(segment_ID + 1, intersection)
+                    line.insert(other_ID + 2, intersection)
+
+                    # Get new segment end 
+                    end = line[segment_ID + 1]
+                other_ID += 1
+
+            # check for intersections in the other constraints
+            for other_line in cell_const[line_id + 1:]:
+                other_ID = 0
+                while other_ID < len(other_line) - 1:
+                    other_start = other_line[other_ID]
+                    other_end = other_line[other_ID + 1]
+
+                    intersection = find_intersection(start, end, other_start, other_end)
+                    if intersection is not None:
+                        intersection_IDs[intersection] = None
+                        # Insert intersection into both segments of the line
+                        line.insert(segment_ID + 1, intersection)
+                        other_line.insert(other_ID + 1, intersection)
+
+                        # Get new segment end 
+                        end = line[segment_ID + 1]
+                    other_ID += 1
+            segment_ID += 1
+    return face_const, cell_const, intersection_IDs
