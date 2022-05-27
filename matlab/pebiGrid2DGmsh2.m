@@ -1,11 +1,11 @@
-function G = pebiGrid2DGmsh(resGridSize, size, varargin)
+function G = pebiGrid2DGmsh2(resGridSize, size, varargin)
 % Construct a 2D PEBI grid, using Gmsh.
 %
-% This method converts the Delaunay grid gotten from delaunay_grid_2D to a
-% PEBI grid directly.
+% This method creates a background mesh using background_grid_2D, then
+% creates constraints using UPR.
 % 
 % SYNOPSIS:
-%   G = pebiGrid2DGmsh(resGridSize, varargin)
+%   G = pebiGrid2DGmsh2(resGridSize, varargin)
 %
 % ARGUMENTS
 %   resGridSize     - Size of the reservoir grid cells, in units of meters.
@@ -124,39 +124,143 @@ function G = pebiGrid2DGmsh(resGridSize, size, varargin)
 %                       recombination, smoothing and subdivision.
 %
 
+defaultFaceConstraints = struct;
+defaultFaceConstraintFactor = 1/3;
+defaultMinThresholdDistance = 0.05;
+defaultMaxThresholdDistance = 0.2;
+defaultFaceIntersectionFactor = string(missing);   % => Python None
+defaultMinIntersectionDistance = string(missing);
+defaultMaxIntersectionDistance = string(missing);
+defaultFractureMeshSampling = 100;
+defaultCellConstraints = struct;
+defaultCellConstraintFactor = 1/4;
+defaultCellConstraintLineFactor = string(missing);
+defaultCellConstraintPointFactor = string(missing);
+defaultMeshAlgorithm = "Delaunay";
+defaultRecombinationAlgorithm = string(missing);
 
-% clippedPebi2D assumes P is an array of Voronoi sites, while 
-% pyG.nodes.coords is an array of Delaunay sites. However, due to the
-% duality of the two, we can use pyG.nodes.coords as Voronoi sites,
-% as long as we swap faceConstraints and cellConstraints. This way, the
-% Delaunay sites (in pyG.nodes.coords) are located along the
-% faceConstraints, which gives us the right result when using them as
-% Voronoi sites in clippedPebi2D.
-for i = 1:length(varargin)
-    if strcmp(varargin(i), 'faceConstraints')
-        varargin{i} = 'cellConstraints';
-    elseif strcmp(varargin(i), 'cellConstraints')
-        varargin{i} = 'faceConstraints';
-    elseif strcmp(varargin(i), 'cellConstraintFactor')
-        varargin{i} = 'faceConstraintFactor';
-    elseif strcmp(varargin(i), 'faceConstraintFactor')
-        varargin{i} = 'cellConstraintFactor';
+    function valid = validMeshAlgorithm(x)
+        legalStrings = {'MeshAdapt', 'Automatic', 'Delaunay', 'Frontal', 'BAMG', 'DelQuad'};
+        if (isinteger(x) && ismember(x, [1 2 5 6 7 8]))
+            valid = true;
+        else
+            switch validatestring(x, legalStrings)
+                case legalStrings
+                    valid = true;
+                otherwise
+                    valid = false;
+            end
+        end
+    end
+
+    function valid = validRecombinationAlgorithm(x)
+        legalStrings = {'Simple', 'Blossom', 'SimpleFull', 'BlossomFull'};
+        if ismissing(x)
+            valid = true;
+        elseif (isinteger(x) && ismember(x, [0 1 2 3]))
+            valid = true;
+        else
+            switch validatestring(x, legalStrings)
+                case legalStrings
+                    valid = true;
+                otherwise
+                    valid = false;
+            end
+        end
+    end
+
+    validFloat = @(x) isfloat(x) && (x > 0);
+    validSize = @(x) isnumeric(x) && length(x) >= 2;
+    function valid = validOptionalFloat(x)
+        if ismissing(x)
+            valid = true;
+        elseif (isfloat(x) && (x > 0))
+            valid = true;
+        else
+            valid = false;
+        end
+    end
+    validInt = @(x) isinteger(x) && (x > 0);
+
+p = inputParser;
+addRequired(p, 'resGridSize', validFloat);
+addRequired(p, 'size', validSize);
+addParameter(p, 'faceConstraints', defaultFaceConstraints);
+addParameter(p, 'faceConstraintFactor', defaultFaceConstraintFactor, validFloat);
+addParameter(p, 'minThresholdDistance', defaultMinThresholdDistance, validFloat);
+addParameter(p, 'maxThresholdDistance', defaultMaxThresholdDistance, validFloat);
+addParameter(p, 'faceIntersectionFactor', defaultFaceIntersectionFactor, @validOptionalFloat);
+addParameter(p, 'minIntersectionDistance', defaultMinIntersectionDistance, @validOptionalFloat);
+addParameter(p, 'maxIntersectionDistance', defaultMaxIntersectionDistance, @validOptionalFloat);
+addParameter(p, 'fractureMeshSampling', defaultFractureMeshSampling, validInt);
+addParameter(p, 'cellConstraints', defaultCellConstraints);
+addParameter(p, 'cellConstraintFactor', defaultCellConstraintFactor, validFloat);
+addParameter(p, 'cellConstraintLineFactor', defaultCellConstraintLineFactor, @validOptionalFloat);
+addParameter(p, 'cellConstraintPointFactor', defaultCellConstraintPointFactor, @validOptionalFloat);
+addParameter(p, 'meshAlgorithm', defaultMeshAlgorithm, @validMeshAlgorithm);
+addParameter(p, 'recombinationAlgorithm', defaultRecombinationAlgorithm, @validRecombinationAlgorithm);
+
+parse(p, resGridSize, size, varargin{:});
+
+% Handle constraints, to allow cell arrays as inputs
+faceConstraints = p.Results.faceConstraints;
+if iscell(faceConstraints)
+    faceConstraints = constraintCellArrayToStruct(faceConstraints);
+end
+cellConstraints = p.Results.cellConstraints;
+if iscell(cellConstraints)
+    cellConstraints = constraintCellArrayToStruct(cellConstraints);
+end
+% Handle shape, to enable polygon shape
+shape = p.Results.size;
+if length(shape) > 2
+    shape = shapeArrayToStruct(shape);
+end
+
+py.gmsh4mrst.background_grid_2D( ...
+    cell_dimensions = p.Results.resGridSize, ...
+    shape = shape, ...
+    face_constraints = faceConstraints, ...
+    face_constraint_factor = p.Results.faceConstraintFactor, ...
+    min_threshold_distance = p.Results.minThresholdDistance, ...
+    max_threshold_distance = p.Results.maxThresholdDistance, ...
+    face_intersection_factor = p.Results.faceIntersectionFactor, ...
+    min_intersection_distance = p.Results.minIntersectionDistance, ...
+    max_intersection_distance = p.Results.maxIntersectionDistance, ...
+    fracture_mesh_sampling = p.Results.fractureMeshSampling, ...
+    cell_constraints = cellConstraints, ...
+    cell_constraint_factor = p.Results.cellConstraintFactor, ...
+    cell_constraint_line_factor = p.Results.cellConstraintLineFactor, ...
+    cell_constraint_point_factor = p.Results.cellConstraintPointFactor, ...
+    mesh_algorithm = p.Results.meshAlgorithm, ...
+    recombination_algorithm = p.Results.recombinationAlgorithm, ...
+    savename = "TEMP_Gmsh_MRST.m");
+G = 0;
+
+if isfile('TEMP_Gmsh_MRST.m')
+    G = gmshToMRST('TEMP_Gmsh_MRST.m');
+    delete TEMP_Gmsh_MRST.m
+end
+
+end
+
+
+function constraintStruct = constraintCellArrayToStruct(constraints)
+    if length(constraints) > 26
+        error( ...
+            "Constraints must have less than 26 separate lines to convert " ...
+            + "automatically from cell array to Struct.")
+    end
+    constraintStruct = struct;
+    for row = 1:length(constraints)
+        rowChar = char(row + 96);    % +96 to start with char(a)
+        constraintStruct.(rowChar).x = constraints{row}(:, 1);
+        constraintStruct.(rowChar).y = constraints{row}(:, 2);
     end
 end
 
-pyG = delaunayGrid2DGmsh(resGridSize, varargin{:});
-
-if length(shape) == 2
-    bnd = [
-        0 0;
-        size(1) 0;
-        size(1) size(2);
-        0 size(2);
-    ];
-else
-    bnd = shape;
-end
-
-G = clippedPebi2D(pyG.nodes.coords, bnd);
-
+function shapeStruct = shapeArrayToStruct(shape)
+    shapeStruct = struct;
+    shapeStruct.x = shape(:, 1);
+    shapeStruct.y = shape(:, 2);
 end
