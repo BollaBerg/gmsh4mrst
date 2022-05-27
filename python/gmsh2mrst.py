@@ -15,10 +15,10 @@ from _arguments import (
     format_meshing_algorithm, format_recombination_algorithm
 )
 from _geometry import (
-    find_intersection, get_perpendicular, get_extruded_points,
-    line_bends_towards_right, distance, calculate_number_of_points
+    find_intersection, get_perpendicular, get_extruded_points, get_midpoint,
+    line_bends_towards_right, distance, calculate_number_of_points, 
 )
-from _gmsh import create_transfinite_cc_box
+from _gmsh import create_transfinite_cc_box, create_threshold_field
 
 def pebi_grid_2D(
         cell_dimensions: float,
@@ -418,10 +418,7 @@ def pebi_grid_2D(
             for i in range(1, len(line) - 1):
                 # We find the normal vector by finding the midpoint of point
                 # [i-1] and [1+1], then the vector from this midpoint to [i]
-                midpoint = (
-                    0.5 * (line[i-1][0] + line[i+1][0]),
-                    0.5 * (line[i-1][1] + line[i+1][1]),
-                )
+                midpoint = get_midpoint(line[i-1], line[i+1])
                 normal_x = line[i][0] - midpoint[0]
                 normal_y = line[i][1] - midpoint[1]
                 # If the points are in a line, we simply use the normal vector
@@ -511,40 +508,36 @@ def pebi_grid_2D(
     # This is gotten from
     # https://gitlab.onelab.info/gmsh/gmsh/-/blob/master/tutorials/python/t10.py
 
-    # The Distance field returns the distance to (sampling) points on each
-    # fracture
-    gmsh.model.mesh.field.add("Distance", 1)
-    gmsh.model.mesh.field.setNumbers(1, "PointsList", fracture_points)
-    gmsh.model.mesh.field.setNumbers(1, "CurvesList", fractures)
-    gmsh.model.mesh.field.setNumber(1, "Sampling", fracture_mesh_sampling)
-
-    # The Treshold field uses the value from the Distance field to define a
-    # change in element size depending on the computed distances
-    gmsh.model.mesh.field.add("Threshold", 2)
-    gmsh.model.mesh.field.setNumber(2, "InField", 1)
-    gmsh.model.mesh.field.setNumber(2, "SizeMin",
-        face_constraint_factor * cell_dimensions
+    fracture_threshold = create_threshold_field(
+        point_list=fracture_points,
+        curve_list=fractures,
+        sampling=fracture_mesh_sampling,
+        min_size=face_constraint_factor * cell_dimensions,
+        max_size=cell_dimensions,
+        min_distance=min_threshold_distance,
+        max_distance=max_threshold_distance
     )
-    gmsh.model.mesh.field.setNumber(2, "SizeMax", cell_dimensions)
-    gmsh.model.mesh.field.setNumber(2, "DistMin", min_threshold_distance)
-    gmsh.model.mesh.field.setNumber(2, "DistMax", max_threshold_distance)
 
     # Add field for intersection points
-    gmsh.model.mesh.field.add("Distance", 3)
-    gmsh.model.mesh.field.setNumbers(3, "PointsList", intersection_points)
-    gmsh.model.mesh.field.add("Threshold", 4)
-    gmsh.model.mesh.field.setNumber(4, "InField", 3)
-    gmsh.model.mesh.field.setNumber(4, "SizeMax", cell_dimensions)
-    gmsh.model.mesh.field.setNumber(4, "DistMin", min_intersection_distance)
-    gmsh.model.mesh.field.setNumber(4, "DistMax", max_intersection_distance)
     if face_intersection_factor is not None:
-        gmsh.model.mesh.field.setNumber(4, "SizeMin",
-            face_intersection_factor * cell_dimensions
-        )
+        intersection_min_size = face_intersection_factor * cell_dimensions
+    else:
+        intersection_min_size = cell_dimensions
+    intersection_threshold = create_threshold_field(
+        point_list=intersection_points,
+        curve_list=None,
+        sampling=None,
+        min_size=intersection_min_size,
+        max_size=cell_dimensions,
+        min_distance=min_intersection_distance,
+        max_distance=max_intersection_distance
+    )
 
     # We use the minimum of all fields as our background mesh
     gmsh.model.mesh.field.add("Min", 10)
-    gmsh.model.mesh.field.setNumbers(10, "FieldsList", [2, 4, ])
+    gmsh.model.mesh.field.setNumbers(10, "FieldsList", [
+        fracture_threshold, intersection_threshold
+    ])
     gmsh.model.mesh.field.setAsBackgroundMesh(10)
 
     # As we define the entire element size in our background mesh, we disable

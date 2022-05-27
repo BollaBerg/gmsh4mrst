@@ -45,3 +45,47 @@ def create_transfinite_cc_box(
     gmsh.model.geo.mesh.set_recombine(2, surface)
 
     return end_line
+
+def create_threshold_field(
+        point_list: list,
+        curve_list: list,
+        sampling: int,
+        min_size: float,
+        max_size: float,
+        min_distance: float,
+        max_distance: float) -> int:
+    """Create a Threshold field, using a Distance field as input
+
+    Args:
+        point_list (list): List of point IDs to calculate threshold for
+        curve_list (list): List of curve IDs to calculate threshold for
+        sampling (int): Number of sample points along the curves
+        min_size (float): Minimum size of cells (close to points/curves)
+        max_size (float): Maximum size of cells (far from points/curves)
+        min_distance (float): Distance where ramp-up should start
+        max_distance (float): Distance where ramp-up is finished
+
+    Returns:
+        int: ID of Threshold field
+    """
+    
+    # The Distance field returns the distance to (sampling) points on each
+    # fracture
+    distance = gmsh.model.mesh.field.add("Distance")
+
+    if point_list is not None:
+        gmsh.model.mesh.field.setNumbers(distance, "PointsList", point_list)
+    if curve_list is not None:
+        gmsh.model.mesh.field.setNumbers(distance, "CurvesList", curve_list)
+        gmsh.model.mesh.field.setNumber(distance, "Sampling", sampling)
+
+    # The Treshold field uses the value from the Distance field to define a
+    # change in element size depending on the computed distances
+    threshold = gmsh.model.mesh.field.add("Threshold")
+    gmsh.model.mesh.field.setNumber(threshold, "InField", distance)
+    gmsh.model.mesh.field.setNumber(threshold, "SizeMin", min_size)
+    gmsh.model.mesh.field.setNumber(threshold, "SizeMax", max_size)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMin", min_distance)
+    gmsh.model.mesh.field.setNumber(threshold, "DistMax", max_distance)
+
+    return threshold
