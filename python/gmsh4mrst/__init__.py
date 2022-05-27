@@ -26,6 +26,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from background_grid_2D import background_grid_2D
-from delaunay_grid_2D import delaunay_grid_2D
-from pebi_base_2D import pebi_base_2D
+from .background_grid_2D import background_grid_2D
+from .delaunay_grid_2D import delaunay_grid_2D
+from .pebi_base_2D import pebi_base_2D

@@ -19,7 +19,9 @@
 from array import array
 from typing import Iterable, Union
 
-from _assertions import assert_column_in_dict, assert_columns_have_same_length
+from gmsh4mrst._assertions import (
+    assert_column_in_dict, assert_columns_have_same_length
+)
 
 def format_constraints(constraints) -> 'list[list[tuple[float, float]]]':
     """Check that constraints has one of the legal forms, and format it

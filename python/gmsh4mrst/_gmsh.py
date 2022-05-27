@@ -18,7 +18,7 @@
 
 import gmsh
 
-from _geometry import (
+from gmsh4mrst._geometry import (
     get_perpendicular, get_extruded_points, get_midpoint,
     line_bends_towards_right, distance, calculate_number_of_points,
 )

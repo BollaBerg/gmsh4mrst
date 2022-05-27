@@ -20,12 +20,12 @@ from typing import Any, Union, Iterable
 
 import gmsh
 
-from _arguments import (
+from gmsh4mrst._arguments import (
     format_constraints, format_shape,
     format_meshing_algorithm, format_recombination_algorithm
 )
-from _geometry import split_at_intersections
-from _gmsh import (
+from gmsh4mrst._geometry import split_at_intersections
+from gmsh4mrst._gmsh import (
     create_threshold_field, create_circumference, create_fracture_point,
     create_cell_constraint_point, create_cell_constraint_line
 )
