@@ -14,7 +14,8 @@ def create_transfinite_cc_box(
         cc_loops: list,
         cc_line_surfaces: list,
         parallel_line_points: int,
-        cc_lines: list
+        cc_lines: list,
+        perp_nodes: int = 2
     ) -> int:
     """Create a transfinite box from the supplied points
     
@@ -46,7 +47,7 @@ def create_transfinite_cc_box(
     # Create a transfinite surface out of the surface we made from
     # the box surrounding the CC line
     # End line always has 2 transfinite points, to get nice single-width cells
-    gmsh.model.geo.mesh.set_transfinite_curve(end_line, 2)
+    gmsh.model.geo.mesh.set_transfinite_curve(end_line, perp_nodes)
     gmsh.model.geo.mesh.set_transfinite_curve(parallel_line_1, parallel_line_points)
     gmsh.model.geo.mesh.set_transfinite_curve(parallel_line_2, parallel_line_points)
     gmsh.model.geo.mesh.set_transfinite_surface(surface)
@@ -128,7 +129,8 @@ def create_cell_constraint_point(point: tuple,
                                 cc_point_size: float,
                                 cc_loops: list,
                                 cc_point_surfaces: list,
-                                cc_lines: list):
+                                cc_lines: list,
+                                nodes: int = 2):
     """Handle everything needed and create transfinite "box" for CC point
 
     Args:
@@ -162,7 +164,7 @@ def create_cell_constraint_point(point: tuple,
     # within the surrounding lines - naturally with a face perfectly on
     # the CC point
     for sur_line in surrounding_lines:
-        gmsh.model.geo.mesh.set_transfinite_curve(sur_line, 2)
+        gmsh.model.geo.mesh.set_transfinite_curve(sur_line, nodes)
     # Make the surface a transfinite surface
     gmsh.model.geo.mesh.set_transfinite_surface(cc_point_surfaces[-1])
     # Convert the (perfectly triangle) surface into a quadrangle one.
@@ -174,7 +176,8 @@ def create_cell_constraint_line(line: 'list[tuple]',
                                 cc_perpendicular_size: float,
                                 cc_loops: list,
                                 cc_line_surfaces: list,
-                                cc_lines: list):
+                                cc_lines: list,
+                                perp_nodes: int = 2):
     """Handle everything needed and create transfinite "box" for CC line
 
 
@@ -203,7 +206,7 @@ def create_cell_constraint_line(line: 'list[tuple]',
     cc_lines.append(start_line)
     # Convert the start line into a transfinite curve. We again use 2
     # transfinite points, leading to a width of 1 cell
-    gmsh.model.geo.mesh.set_transfinite_curve(start_line, 2)
+    gmsh.model.geo.mesh.set_transfinite_curve(start_line, perp_nodes)
 
     # Handle all midpoints
     for i in range(1, len(line) - 1):
@@ -243,7 +246,8 @@ def create_cell_constraint_line(line: 'list[tuple]',
         end_line = create_transfinite_cc_box(
             start_1, start_2, start_line,
             end_1, end_2,
-            cc_loops, cc_line_surfaces, parallel_line_points, cc_lines
+            cc_loops, cc_line_surfaces, parallel_line_points, cc_lines,
+            perp_nodes
         )
 
         # Convert the previous end line to a new start line
@@ -277,5 +281,5 @@ def create_cell_constraint_line(line: 'list[tuple]',
         start_1, start_2, start_line,
         end_1, end_2,
         cc_loops, cc_line_surfaces, parallel_line_points,
-        cc_lines
+        cc_lines, perp_nodes
     )
