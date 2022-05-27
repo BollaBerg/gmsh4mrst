@@ -5,13 +5,20 @@ mesh to file.
 Functions:
     pebi_grid_2D
 """
-from array import array
 from itertools import combinations
-from math import atan2, sqrt, ceil
 from typing import Any, Union, Iterable
 
 import gmsh
 
+from _arguments import (
+    format_constraints, format_shape,
+    format_meshing_algorithm, format_recombination_algorithm
+)
+from _geometry import (
+    find_intersection, get_perpendicular, get_extruded_points,
+    line_bends_towards_right, distance, calculate_number_of_points
+)
+from _gmsh import create_transfinite_cc_box
 
 def pebi_grid_2D(
         cell_dimensions: float,
@@ -265,29 +272,7 @@ def pebi_grid_2D(
         run_frontend (bool, optional): Set to True in order to run the Gmsh
             frontend and show the created mesh. Defaults to False.
     """
-    if isinstance(shape, Iterable):
-        if len(shape) < 2:
-            raise ValueError(
-                f"Shape must have length >= 2. Current length: {len(shape)}"
-            )
-        elif len(shape) == 2:
-            # Shape is the size of the domain, starting at (0, 0)
-            shape = [
-                (0, 0), (0, shape[1]), (shape[0], shape[1]), (shape[0], 0)
-            ]
-    elif isinstance(shape, dict):
-        # Shape is a dict, likely from MATLAB
-        _assert_column_in_dict(shape, "x")
-        _assert_column_in_dict(shape, "y")
-        _assert_columns_have_same_length(shape, "x", "y")
-        shape = [
-            (x, y) for x, y in zip(shape.get("x"), shape.get("y"))
-        ]
-    else:
-        raise ValueError(
-            f"Type {type(shape)} is not supported for argument `shape`!"
-        )
-
+    # Handle default values
     if face_constraints is None:
         face_constraints = []
     if min_intersection_distance is None:
@@ -301,56 +286,17 @@ def pebi_grid_2D(
     if cell_constraint_point_factor is None:
         cell_constraint_point_factor = cell_constraint_factor
 
-    # Handle mesh algorithm
-    # According to 
-    # https://gitlab.onelab.info/gmsh/gmsh/-/blob/master/tutorials/python/t10.py
-    # Frontal-Delaunay (6) usually leads to the highest quality meshes, but
-    # Delaunay (5) handles complex mesh sizes better - especially size fields
-    # with large element size gradients. We therefore default to Delaunay.
-    # For quad-shaped grids, "Frontal-Delaunay for Quads" (8) may be beneficial.
-    mesh_algorithm_dict = {
-        "meshadapt": 1,
-        "automatic": 2,
-        "delaunay": 5,
-        "frontal": 6,
-        "bamg": 7,
-        "delquad": 8
-    }
-    if isinstance(mesh_algorithm, int):
-        if mesh_algorithm not in mesh_algorithm_dict.values():
-            raise ValueError(
-                "mesh_algorithm must be a legal value. Current value: "
-                + f"{mesh_algorithm}. Legal values: {mesh_algorithm_dict}"
-            )
-    else:
-        mesh_algorithm = mesh_algorithm_dict.get(mesh_algorithm.lower(), 5)
+    # Format Gmsh algorithms
+    mesh_algorithm = format_meshing_algorithm(mesh_algorithm)
+    recombination_algorithm = format_recombination_algorithm(recombination_algorithm)
     
-    # Do the same for the recombination algorithm
-    recombination_algorithm_dict = {
-        "simple": 0,
-        "blossom": 1,
-        "simplefull": 2,
-        "blossomfull": 3
-    }
-    if isinstance(recombination_algorithm, int):
-        if recombination_algorithm not in recombination_algorithm_dict.values():
-            raise ValueError(
-                "recombination_algorithm must be a legal value. Current value: "
-                + f"{recombination_algorithm}. Legal values: {recombination_algorithm_dict}"
-            )
-    elif recombination_algorithm is None:
-        pass
-    else:
-        recombination_algorithm = recombination_algorithm_dict.get(
-            recombination_algorithm.lower()
-        )
-    
-    # Do some (massive) argument handling, for use in MATLAB
-    face_constraints = _format_constraints(face_constraints)
-    cell_constraints = _format_constraints(cell_constraints)
+    # Format all complex arguments
+    shape = format_shape(shape)
+    face_constraints = format_constraints(face_constraints)
+    cell_constraints = format_constraints(cell_constraints)
     
     gmsh.initialize()
-    gmsh.model.add("pebiGrid2D")
+    gmsh.model.add("gmsh4mrst")
 
     # Create corners
     corners = [
@@ -397,7 +343,7 @@ def pebi_grid_2D(
     intersection_points = []
     if face_intersection_factor is not None:
         for line_1, line_2 in combinations(line_segments, 2):
-            intersection = _find_intersection(
+            intersection = find_intersection(
                 line_1[0], line_1[1], line_2[0], line_2[1]
             )
             if intersection is not None:
@@ -453,11 +399,11 @@ def pebi_grid_2D(
             # Compute the normal vector of the line from start- to next point
             delta_x = line[1][0] - line[0][0]
             delta_y = line[1][1] - line[0][1]
-            normal_x, normal_y = _get_perpendicular(delta_x, delta_y)
+            normal_x, normal_y = get_perpendicular(delta_x, delta_y)
 
             # Create starting points, one along the normal vector and one
             # opposite of the normal vector
-            point_1, point_2 = _get_extruded_points(line[0], normal_x, normal_y, cc_line_size)
+            point_1, point_2 = get_extruded_points(line[0], normal_x, normal_y, cc_line_size)
             
             # Create actual Gmsh points of the starting points
             start_1 = gmsh.model.geo.add_point(point_1[0], point_1[1], 0)
@@ -484,14 +430,14 @@ def pebi_grid_2D(
                     normal_x, normal_y = normal_x, normal_y
                 # Like for the start point, we create two extrusions - one 
                 # along the normal vector, and one opposite of it
-                end_point_1, end_point_2 = _get_extruded_points(
+                end_point_1, end_point_2 = get_extruded_points(
                     line[i], normal_x, normal_y, cc_line_size
                 )
                 # If the line bends towards the right (creating an A-shape),
                 # then we must flip the points. This ensures that the start-
                 # and end points make a nice rectangle (compared to the twisted
                 # rectangle we'd get otherwise)
-                if _line_bends_towards_right(line[i-1], line[i], line[i+1]):
+                if line_bends_towards_right(line[i-1], line[i], line[i+1]):
                     end_point_1, end_point_2 = end_point_2, end_point_1
                 
                 # Create actual Gmsh points of the extrusion points
@@ -501,12 +447,12 @@ def pebi_grid_2D(
                 # Compute the transfinite points of the parallel lines
                 # We use the line from start_2 -> end_1 as our measuring stick, as
                 # the difference between the parallel lines is likely very small
-                distance = _distance(line[i-1], line[i])
-                parallel_line_points = _calculate_parallel_transfinite_points(
-                    distance, cc_line_size
+                line_length = distance(line[i-1], line[i])
+                parallel_line_points = calculate_number_of_points(
+                    line_length, cc_line_size
                 )
 
-                end_line = _create_transfinite_cc_box(
+                end_line = create_transfinite_cc_box(
                     start_1, start_2, start_line,
                     end_1, end_2,
                     cc_loops, cc_line_surfaces, parallel_line_points
@@ -522,9 +468,9 @@ def pebi_grid_2D(
             # Same as for the start point - compute the normal vector
             delta_x = line[-1][0] - line[-2][0]
             delta_y = line[-1][1] - line[-2][1]
-            normal_x, normal_y = _get_perpendicular(delta_x, delta_y)
+            normal_x, normal_y = get_perpendicular(delta_x, delta_y)
             # Use the normal vector to get extrusion points
-            end_point_2, end_point_1 = _get_extruded_points(line[-1], normal_x, normal_y, cc_line_size)
+            end_point_2, end_point_1 = get_extruded_points(line[-1], normal_x, normal_y, cc_line_size)
 
             # Create actual Gmsh points from the extrusion points
             end_1 = gmsh.model.geo.add_point(end_point_1[0], end_point_1[1], 0)
@@ -533,13 +479,13 @@ def pebi_grid_2D(
             # Compute the transfinite points of the parallel lines
             # We use the line from start_2 -> end_1 as our measuring stick, as
             # the difference between the parallel lines is likely very small
-            distance = _distance(line[-1], line[-2])
-            parallel_line_points = _calculate_parallel_transfinite_points(
-                distance, cc_line_size
+            line_length = distance(line[-1], line[-2])
+            parallel_line_points = calculate_number_of_points(
+                line_length, cc_line_size
             )
 
             # Create a transfinite surface out of the created CC box
-            _create_transfinite_cc_box(
+            create_transfinite_cc_box(
                 start_1, start_2, start_line,
                 end_1, end_2,
                 cc_loops, cc_line_surfaces, parallel_line_points
@@ -627,198 +573,6 @@ def pebi_grid_2D(
 
     # Always finalize
     gmsh.finalize()
-
-
-
-
-############################## HELPER FUNCTIONS ##############################
-def _assert_column_in_dict(face_constraints: dict, column: str):
-    if column not in face_constraints.keys():
-        raise ValueError(
-            f"Dictionary {dict} must contain column `{column}`!"
-        )
-
-def _assert_columns_have_same_length(face_constraints: dict, col1: str, col2: str):
-    if len(face_constraints.get(col1)) != len(face_constraints.get(col2)):
-        raise ValueError(
-            f"Column `{col1}` and `{col2}` must be the same length! "
-            + f"len({col1}): {len(face_constraints.get(col1))}, len({col2}): {len(face_constraints.get(col2))}"
-        )
-
-def _check_array_dict_and_return_line_list(face_constraints: dict):
-    # Check that face_constraints contains column x and y
-    _assert_column_in_dict(face_constraints, "x")
-    _assert_column_in_dict(face_constraints, "y")
-    
-    # Handle actual content
-    if isinstance(face_constraints.get("x"), float):
-        # If the 'line' is a single point, then x and y are floats,
-        # and must be handled explicitly
-        return [(face_constraints.get("x"), face_constraints.get("y"))]
-    else:
-        # Assume 'line' is a list/tuple/Iterable of floats
-        _assert_columns_have_same_length(face_constraints, "x", "y")
-        return list(zip(face_constraints.get("x"), face_constraints.get("y")))
-
-def _find_intersection(line_1_start, line_1_end, line_2_start, line_2_end):
-    """Find the intersection of two line segments.
-
-    Method inspired by
-    https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect#565282
-    with credit, quote:
-        "Credit: this method is the 2-dimensional specialization of the 3D line
-        intersection algorithm from the article 'Intersection of two lines in
-        three-space' by Ronald Goldman, published in Graphics Gems, page 304
-
-    Args:
-        line_1_start (tuple): Start point of line 1
-        line_1_end (tuple): End point of line 1
-        line_2_start (tuple): Start point of line 2
-        line_2_end (tuple): End point of line 2
-    """
-    if line_1_start[0] > line_1_end[0]:
-        line_1_start, line_1_end = line_1_end, line_1_start
-    if line_2_start[0] > line_2_end[0]:
-        line_2_start, line_2_end = line_2_end, line_2_start
-    
-    def cross_product(v, w):
-        return v[0]*w[1] - v[1]*w[0]
-    
-    delta_1 = [line_1_end[0]-line_1_start[0], line_1_end[1]-line_1_start[1]] #r
-    delta_2 = [line_2_end[0]-line_2_start[0], line_2_end[1]-line_2_start[1]] #s
-
-    if cross_product(delta_1, delta_2) == 0:
-        # Either parallel or collinear -> No intersections we need to consider
-        return None
-    
-    line_difference = [                         # (q - p)
-        line_2_start[0] - line_1_start[0],
-        line_2_start[1] - line_1_start[1]
-    ]
-    t = cross_product(line_difference, delta_2) / cross_product(delta_1, delta_2)
-    u = cross_product(line_difference, delta_1) / cross_product(delta_1, delta_2)
-    if 0 <= t <= 1 and 0 <= u <= 1:
-        return [line_1_start[0] + t * delta_1[0], line_1_start[1] + t * delta_1[1]]
-    else:
-        return None
-
-
-def _format_constraints(constraints) -> list:
-    if isinstance(constraints, dict):
-        if len(constraints) == 0:
-            # constraints is an empty list -> No fractures to handle,
-            # simply create a single mesh within size
-            constraints = []
-        elif isinstance(list(constraints.values())[0], array):
-            # If data is sent from MATLAB, then constraints is a dict
-            # If there is only one line, then we accept it as a 1D dict, i.e.
-            # one can write
-            #   constraints.x = [x1 ...];
-            #   constraints.y = [y1 ...];
-            # Then constraints is a dict in the shape {x: array, y: array}
-            constraints = [_check_array_dict_and_return_line_list(constraints)]
-
-        elif isinstance(list(constraints.values())[0], dict):
-            # If data is sent from MATLAB, then constraints is a dict of dicts
-            # If there are more than one line, then it must be a 2D dict, i.e.
-            # one can write
-            #   constraints.line1.x = [x11 ...];
-            #   constraints.line1.y = [y11 ...];
-            #   constraints.line2.x = [x21 ...];
-            #   constraints.line2.y = [y21 ...];
-            # Each element in constraints.values is a dict of {x: array, y: array}
-            new_constraints = []
-            for constraint in constraints.values():
-                new_constraints.append(
-                    _check_array_dict_and_return_line_list(constraint)
-                )
-            constraints = new_constraints
-    return constraints
-
-def _get_perpendicular(delta_x, delta_y) -> 'tuple[float, float]':
-    return -delta_y, delta_x
-
-def _get_extruded_points(
-            base_point, normal_x, normal_y, cc_size
-        ) -> 'tuple[tuple[float, float], tuple[float, float]]':
-    # "Normalize" normal_x and normal_y, such that the length of the normal
-    # vector = 1
-    prev_length = sqrt(normal_x**2 + normal_y**2)
-    normal_x = normal_x / prev_length
-    normal_y = normal_y / prev_length
-    extruded_above = (
-        base_point[0] + normal_x * cc_size / 4,
-        base_point[1] + normal_y * cc_size / 4
-    )
-    extruded_below = (
-        base_point[0] - normal_x * cc_size / 4,
-        base_point[1] - normal_y * cc_size / 4
-    )
-    return extruded_above, extruded_below
-
-def _line_bends_towards_right(start_point, mid_point, end_point) -> bool:
-    angle_start_mid = atan2(
-        mid_point[1] - start_point[1], mid_point[0] - start_point[0]
-    )
-    angle_start_end = atan2(
-        end_point[1] - start_point[1], end_point[0] - start_point[0]
-    )
-    return angle_start_mid > angle_start_end
-
-def _create_transfinite_cc_box(
-        start_1,
-        start_2,
-        start_line,
-        end_1,
-        end_2,
-        cc_loops: list,
-        cc_line_surfaces: list,
-        parallel_line_points: int
-    ) -> int:
-    """Create a transfinite box from the supplied points
-    
-    Add the curve loop to cc_loops, and the surface to cc_line_surfaces.
-
-    Return end_line
-    """
-    # Create the parallel lines of the box surrounding the CC line
-    parallel_line_1 = gmsh.model.geo.add_line(start_2, end_1)
-    parallel_line_2 = gmsh.model.geo.add_line(end_2, start_1)
-    # Create the end line
-    end_line = gmsh.model.geo.add_line(end_1, end_2)
-
-    # Save the curve loop, for use when creating the base surface
-    curve_loop = gmsh.model.geo.add_curve_loop([
-        start_line,
-        parallel_line_1,
-        end_line,
-        parallel_line_2
-    ])
-    cc_loops.append(curve_loop)
-
-    # And save the actual surface created
-    surface = gmsh.model.geo.add_plane_surface([curve_loop])
-    cc_line_surfaces.append(surface)
-
-    # Create a transfinite surface out of the surface we made from
-    # the box surrounding the CC line
-    # End line always has 2 transfinite points, to get nice single-width cells
-    gmsh.model.geo.mesh.set_transfinite_curve(end_line, 2)
-    gmsh.model.geo.mesh.set_transfinite_curve(parallel_line_1, parallel_line_points)
-    gmsh.model.geo.mesh.set_transfinite_curve(parallel_line_2, parallel_line_points)
-    gmsh.model.geo.mesh.set_transfinite_surface(surface)
-    gmsh.model.geo.mesh.set_recombine(2, surface)
-
-    return end_line
-
-def _distance(point_1, point_2) -> float:
-    """Compute the distance between two points, using Euclidean distance"""
-    return sqrt((point_2[1] - point_1[1])**2 + (point_2[0] - point_1[0])**2)
-
-def _calculate_parallel_transfinite_points(distance, cc_line_size):
-    return ceil(distance / cc_line_size) + 1
-
-############################## END OF HELPERS ##############################
 
 
 
