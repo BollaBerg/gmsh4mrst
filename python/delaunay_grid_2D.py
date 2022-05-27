@@ -1,10 +1,3 @@
-"""
-Create a very simple GMSH plot, using user-supplied arguments, then save the
-mesh to file.
-
-Functions:
-    pebi_grid_2D
-"""
 from typing import Any, Union, Iterable
 
 import gmsh
@@ -19,7 +12,7 @@ from _gmsh import (
     create_cell_constraint_point, create_cell_constraint_line
 )
 
-def pebi_grid_2D(
+def delaunay_grid_2D(
         cell_dimensions: float,
         *,
         shape: list = None,
@@ -488,7 +481,7 @@ def pebi_grid_2D(
 
 
 if __name__ == "__main__":
-    pebi_grid_2D(
+    delaunay_grid_2D(
         0.2, 
         face_constraints=[
             [(0.25, 0.25), (0.4, 0.5), (0.7, 0.7)],
