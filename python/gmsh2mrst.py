@@ -305,8 +305,8 @@ def pebi_grid_2D(
         gmsh.model.geo.add_point(point[0], point[1], 0) for point in shape
     ]
 
-    # Create circumference face_constraints
-    circumference_face_constraints = create_circumference(corners)
+    # Create circumference
+    circumference = create_circumference(corners)
 
     # Create fractures (face constraints)
     fracture_points = []
@@ -482,11 +482,11 @@ def pebi_grid_2D(
             )
 
     # Create curve loop of circumference
-    circumference = gmsh.model.geo.add_curve_loop(circumference_face_constraints)
+    circumference_loop = gmsh.model.geo.add_curve_loop(circumference)
     
     # Define surface from circumference
     # We remove the loops created from cell constraints
-    surface = gmsh.model.geo.add_plane_surface([circumference, *cc_loops])
+    surface = gmsh.model.geo.add_plane_surface([circumference_loop, *cc_loops])
 
     # Synchronize to prepare for embedding fracture face_constraints
     gmsh.model.geo.synchronize()
