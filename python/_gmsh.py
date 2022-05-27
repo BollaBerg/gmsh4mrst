@@ -89,3 +89,18 @@ def create_threshold_field(
     gmsh.model.mesh.field.setNumber(threshold, "DistMax", max_distance)
 
     return threshold
+
+def create_circumference(points: 'list[int]') -> 'list[int]':
+    """Create a Gmsh circumference around a list of points.
+
+    Args:
+        points (list[int]): List of point ID to encapsulate
+
+    Returns:
+        list[int]: List of Gmsh IDs of the resulting lines
+    """
+    output = []
+    for i in range(len(points) - 1):
+        output.append(gmsh.model.geo.add_line(points[i], points[i+1]))
+    output.append(gmsh.model.geo.add_line(points[-1], points[0]))
+    return output

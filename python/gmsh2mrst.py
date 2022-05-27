@@ -18,7 +18,9 @@ from _geometry import (
     find_intersection, get_perpendicular, get_extruded_points, get_midpoint,
     line_bends_towards_right, distance, calculate_number_of_points, 
 )
-from _gmsh import create_transfinite_cc_box, create_threshold_field
+from _gmsh import (
+    create_transfinite_cc_box, create_threshold_field, create_circumference
+)
 
 def pebi_grid_2D(
         cell_dimensions: float,
@@ -304,12 +306,7 @@ def pebi_grid_2D(
     ]
 
     # Create circumference face_constraints
-    circumference_face_constraints = [
-        gmsh.model.geo.add_line(corners[i], corners[i+1])
-            for i in range(len(corners) - 1)
-    ] + [
-        gmsh.model.geo.add_line(corners[-1], corners[0])
-    ]
+    circumference_face_constraints = create_circumference(corners)
 
     # Create fractures (face constraints)
     fracture_points = []
@@ -370,12 +367,8 @@ def pebi_grid_2D(
             ]
             # Create lines surrounding the CC point, i.e. between surrounding
             # points. These make up the mesh cell around the CC point
-            surrounding_lines = [
-                gmsh.model.geo.add_line(surrounding_points[0], surrounding_points[1]),
-                gmsh.model.geo.add_line(surrounding_points[1], surrounding_points[2]),
-                gmsh.model.geo.add_line(surrounding_points[2], surrounding_points[3]),
-                gmsh.model.geo.add_line(surrounding_points[3], surrounding_points[0]),
-            ]
+            surrounding_lines = create_circumference(surrounding_points)
+
             # Save the curve loop created
             cc_loops.append(
                 gmsh.model.geo.add_curve_loop(surrounding_lines)
