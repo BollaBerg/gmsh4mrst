@@ -534,11 +534,11 @@ def pebi_grid_2D(
     )
 
     # We use the minimum of all fields as our background mesh
-    gmsh.model.mesh.field.add("Min", 10)
-    gmsh.model.mesh.field.setNumbers(10, "FieldsList", [
+    min_field = gmsh.model.mesh.field.add("Min")
+    gmsh.model.mesh.field.setNumbers(min_field, "FieldsList", [
         fracture_threshold, intersection_threshold
     ])
-    gmsh.model.mesh.field.setAsBackgroundMesh(10)
+    gmsh.model.mesh.field.setAsBackgroundMesh(min_field)
 
     # As we define the entire element size in our background mesh, we disable
     # certain on-by-default mesh calculations
