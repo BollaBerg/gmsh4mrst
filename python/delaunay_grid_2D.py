@@ -45,7 +45,7 @@ def delaunay_grid_2D(
         CC_mesh_sampling: int = 100,
         mesh_algorithm: str = "Delaunay",
         recombination_algorithm: str = None,
-        savename: str = "TEMP_Gmsh_MRST.m",
+        savename: str = None,
         run_frontend: bool = False
     ):
     """Create a 2D mesh, with user-supplied face constraints.
