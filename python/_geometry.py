@@ -124,98 +124,58 @@ def split_at_intersections(
     face_const = deepcopy(face_constraints)
     cell_const = deepcopy(cell_constraints)
 
+    def _check_line(line, other_constraints):
+        if len(line) < 2:
+            # line is a point
+            return
+        segment_ID = 0
+        while segment_ID < len(line) - 1:
+            start = line[segment_ID]         # start = (x11, y11)
+            end = line[segment_ID+1]
+            # Check for intersections in own line
+            # We only need to check "forwards", as we have already looked at
+            # the combinations behind us
+            # We naturally don't check intersections with the current segment
+            other_ID = segment_ID + 1
+            while other_ID < len(line) - 1:
+                other_start = line[other_ID]
+                other_end = line[other_ID + 1]
+
+                intersection = find_intersection(start, end, other_start, other_end)
+                if intersection is not None:
+                    intersection_IDs[intersection] = None
+                    # Insert intersection into both segments of the line
+                    line.insert(segment_ID + 1, intersection)
+                    line.insert(other_ID + 2, intersection)
+
+                    # Get new segment end 
+                    end = line[segment_ID + 1]
+                other_ID += 1
+
+            # check for intersections in the other constraints
+            for other_line in other_constraints:
+                other_ID = 0
+                while other_ID < len(other_line) - 1:
+                    other_start = other_line[other_ID]
+                    other_end = other_line[other_ID + 1]
+
+                    intersection = find_intersection(start, end, other_start, other_end)
+                    if intersection is not None:
+                        intersection_IDs[intersection] = None
+                        # Insert intersection into both segments of the line
+                        line.insert(segment_ID + 1, intersection)
+                        other_line.insert(other_ID + 1, intersection)
+
+                        # Get new segment end 
+                        end = line[segment_ID + 1]
+                    other_ID += 1
+            segment_ID += 1
+
     # Go through face constraints first
     for line_id, line in enumerate(face_const):
-        if len(line) < 2:
-            # line is a point
-            continue
-        segment_ID = 0
-        while segment_ID < len(line) - 1:
-            start = line[segment_ID]         # start = (x11, y11)
-            end = line[segment_ID+1]
-            # Check for intersections in own line
-            # We only need to check "forwards", as we have already looked at
-            # the combinations behind us
-            # We naturally don't check intersections with the current segment
-            other_ID = segment_ID + 1
-            while other_ID < len(line) - 1:
-                other_start = line[other_ID]
-                other_end = line[other_ID + 1]
+        _check_line(line, face_const[line_id + 1: ] + cell_const)
 
-                intersection = find_intersection(start, end, other_start, other_end)
-                if intersection is not None:
-                    intersection_IDs[intersection] = None
-                    # Insert intersection into both segments of the line
-                    line.insert(segment_ID + 1, intersection)
-                    line.insert(other_ID + 2, intersection)
-
-                    # Get new segment end 
-                    end = line[segment_ID + 1]
-                other_ID += 1
-
-            # check for intersections in the other constraints
-            for other_line in face_const[line_id + 1:] + cell_const:
-                other_ID = 0
-                while other_ID < len(other_line) - 1:
-                    other_start = other_line[other_ID]
-                    other_end = other_line[other_ID + 1]
-
-                    intersection = find_intersection(start, end, other_start, other_end)
-                    if intersection is not None:
-                        intersection_IDs[intersection] = None
-                        # Insert intersection into both segments of the line
-                        line.insert(segment_ID + 1, intersection)
-                        other_line.insert(other_ID + 1, intersection)
-
-                        # Get new segment end 
-                        end = line[segment_ID + 1]
-                    other_ID += 1
-            segment_ID += 1
     # Now check cell constraints against each other
     for line_id, line in enumerate(cell_const):
-        if len(line) < 2:
-            # line is a point
-            continue
-        segment_ID = 0
-        while segment_ID < len(line) - 1:
-            start = line[segment_ID]         # start = (x11, y11)
-            end = line[segment_ID+1]
-            # Check for intersections in own line
-            # We only need to check "forwards", as we have already looked at
-            # the combinations behind us
-            # We naturally don't check intersections with the current segment
-            other_ID = segment_ID + 1
-            while other_ID < len(line) - 1:
-                other_start = line[other_ID]
-                other_end = line[other_ID + 1]
-
-                intersection = find_intersection(start, end, other_start, other_end)
-                if intersection is not None:
-                    intersection_IDs[intersection] = None
-                    # Insert intersection into both segments of the line
-                    line.insert(segment_ID + 1, intersection)
-                    line.insert(other_ID + 2, intersection)
-
-                    # Get new segment end 
-                    end = line[segment_ID + 1]
-                other_ID += 1
-
-            # check for intersections in the other constraints
-            for other_line in cell_const[line_id + 1:]:
-                other_ID = 0
-                while other_ID < len(other_line) - 1:
-                    other_start = other_line[other_ID]
-                    other_end = other_line[other_ID + 1]
-
-                    intersection = find_intersection(start, end, other_start, other_end)
-                    if intersection is not None:
-                        intersection_IDs[intersection] = None
-                        # Insert intersection into both segments of the line
-                        line.insert(segment_ID + 1, intersection)
-                        other_line.insert(other_ID + 1, intersection)
-
-                        # Get new segment end 
-                        end = line[segment_ID + 1]
-                    other_ID += 1
-            segment_ID += 1
+        _check_line(line, cell_const[line_id + 1: ])
     return face_const, cell_const, intersection_IDs
