@@ -45,6 +45,7 @@ def find_intersection(line_1_start, line_1_end, line_2_start, line_2_end):
 
 
 def get_perpendicular(delta_x, delta_y) -> 'tuple[float, float]':
+    """Return the normal vector of delta_x, delta_y pointing 'left'"""
     return -delta_y, delta_x
 
 
