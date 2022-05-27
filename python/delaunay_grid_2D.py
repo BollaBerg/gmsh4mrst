@@ -48,7 +48,11 @@ def delaunay_grid_2D(
         savename: str = None,
         run_frontend: bool = False
     ):
-    """Create a 2D mesh, with user-supplied face constraints.
+    """Create a 2D mesh, with user-supplied face- and cell constraints.
+
+    Face constraints are traced by lines embedded in the resulting surface
+    mesh. Cell constraints are traced by a surrounding transfinite mesh, 
+    creating a set of quadrilateral cells surrounding the constraint.
 
     This project was done as part of my Bachelor thesis during spring 2022, in
     order to help provide a secondary backend to the SINTEF-developed MATLAB
@@ -236,7 +240,7 @@ def delaunay_grid_2D(
             for the width of the cells within the cell constraints, as
             compared to the supplied cell_dimensions. Overrides
             cell_constraint_factor for lines. If set to None,
-            cell_constraint_factor will be used for length. Defaults to None.
+            cell_constraint_factor will be used for width. Defaults to None.
             
         cell_constraint_point_factor (float, optional): The size used for cells
             around cell constraint points, as compared to the supplied
