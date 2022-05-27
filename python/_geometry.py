@@ -144,7 +144,7 @@ def split_at_intersections(
 
                 intersection = find_intersection(start, end, other_start, other_end)
                 if intersection is not None:
-                    intersection_IDs[intersection] = -1
+                    intersection_IDs[intersection] = None
                     # Insert intersection into both segments of the line
                     line.insert(segment_ID + 1, intersection)
                     line.insert(other_ID + 2, intersection)

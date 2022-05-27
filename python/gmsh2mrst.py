@@ -17,9 +17,11 @@ from _arguments import (
 from _geometry import (
     find_intersection, get_perpendicular, get_extruded_points, get_midpoint,
     line_bends_towards_right, distance, calculate_number_of_points, 
+    split_at_intersections,
 )
 from _gmsh import (
-    create_transfinite_cc_box, create_threshold_field, create_circumference
+    create_transfinite_cc_box, create_threshold_field, create_circumference,
+    create_fracture_point
 )
 
 def pebi_grid_2D(
@@ -296,6 +298,11 @@ def pebi_grid_2D(
     shape = format_shape(shape)
     face_constraints = format_constraints(face_constraints)
     cell_constraints = format_constraints(cell_constraints)
+
+    # Split all constraints at their intersection
+    face_constraints, cell_constraints, intersection_IDs = split_at_intersections(
+        face_constraints, cell_constraints
+    )
     
     gmsh.initialize()
     gmsh.model.add("gmsh4mrst")
@@ -308,7 +315,7 @@ def pebi_grid_2D(
     # Create circumference
     circumference = create_circumference(corners)
 
-    # Create fractures (face constraints)
+    ##### CREATE FRACTURES (FACE CONSTRAINTS) ######
     fracture_points = []
     fractures = []
     if face_intersection_factor is not None:
@@ -325,9 +332,9 @@ def pebi_grid_2D(
         # There exists a line with at least 1 segment
         # As line segment [i] starts with the end of line segment [i - 1],
         # we avoid doubling on points by moving fracture_start out of the loop
-        fracture_start = gmsh.model.geo.add_point(line[0][0], line[0][1], 0)
+        fracture_start = create_fracture_point(line[0], intersection_IDs)
         for i in range(1, len(line)):
-            fracture_end = gmsh.model.geo.add_point(line[i][0], line[i][1], 0)
+            fracture_end = create_fracture_point(line[i], intersection_IDs)
             fractures.append(
                 gmsh.model.geo.add_line(fracture_start, fracture_end)
             )
