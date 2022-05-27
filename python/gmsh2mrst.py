@@ -5,7 +5,6 @@ mesh to file.
 Functions:
     pebi_grid_2D
 """
-from itertools import combinations
 from typing import Any, Union, Iterable
 
 import gmsh
@@ -15,7 +14,7 @@ from _arguments import (
     format_meshing_algorithm, format_recombination_algorithm
 )
 from _geometry import (
-    find_intersection, get_perpendicular, get_extruded_points, get_midpoint,
+    get_perpendicular, get_extruded_points, get_midpoint,
     line_bends_towards_right, distance, calculate_number_of_points, 
     split_at_intersections,
 )
@@ -318,8 +317,6 @@ def pebi_grid_2D(
     ##### CREATE FRACTURES (FACE CONSTRAINTS) ######
     fracture_points = []
     fractures = []
-    if face_intersection_factor is not None:
-        line_segments = []
     # Create fracture points
     for line in face_constraints:
         # Handle single points their own way
@@ -339,21 +336,6 @@ def pebi_grid_2D(
                 gmsh.model.geo.add_line(fracture_start, fracture_end)
             )
             fracture_start = fracture_end
-
-            if face_intersection_factor is not None:
-                line_segments.append([(line[i-1][0], line[i-1][1]), (line[i][0], line[i][1])])
-    
-    # Calculate intersections
-    intersection_points = []
-    if face_intersection_factor is not None:
-        for line_1, line_2 in combinations(line_segments, 2):
-            intersection = find_intersection(
-                line_1[0], line_1[1], line_2[0], line_2[1]
-            )
-            if intersection is not None:
-                intersection_points.append(
-                    gmsh.model.geo.add_point(intersection[0], intersection[1], 0)
-                )
 
     # Create cell constraints
     cc_loops = []               # Holds line loops - used when making surface
@@ -519,6 +501,7 @@ def pebi_grid_2D(
     )
 
     # Add field for intersection points
+    intersection_points = list(intersection_IDs.values())
     if face_intersection_factor is not None:
         intersection_min_size = face_intersection_factor * cell_dimensions
     else:
