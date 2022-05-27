@@ -20,7 +20,7 @@ from _geometry import (
 )
 from _gmsh import (
     create_transfinite_cc_box, create_threshold_field, create_circumference,
-    create_fracture_point
+    create_fracture_point, create_cell_constraint_point
 )
 
 def pebi_grid_2D(
@@ -346,34 +346,9 @@ def pebi_grid_2D(
     for line in cell_constraints:
         if len(line) == 1:
             # line is a single point
-            x, y = line[0][0], line[0][1]
-            # Create corners around the CC point - up, down, left and right
-            surrounding_points = [
-                gmsh.model.geo.add_point(x - cc_point_size/2, y, 0),
-                gmsh.model.geo.add_point(x, y + cc_point_size/2, 0),
-                gmsh.model.geo.add_point(x + cc_point_size/2, y, 0),
-                gmsh.model.geo.add_point(x, y - cc_point_size/2, 0)
-            ]
-            # Create lines surrounding the CC point, i.e. between surrounding
-            # points. These make up the mesh cell around the CC point
-            surrounding_lines = create_circumference(surrounding_points)
-
-            # Save the curve loop created
-            cc_loops.append(
-                gmsh.model.geo.add_curve_loop(surrounding_lines)
+            create_cell_constraint_point(
+                line[0], cc_point_size, cc_loops, cc_point_surfaces
             )
-            # Save the surface created
-            cc_point_surfaces.append(gmsh.model.geo.add_plane_surface([cc_loops[-1]]))
-            # Make each surrounding line into a transfinite curve with 2 points
-            # This creates a point in each corner, leading to a single cell
-            # within the surrounding lines - naturally with a face perfectly on
-            # the CC point
-            for sur_line in surrounding_lines:
-                gmsh.model.geo.mesh.set_transfinite_curve(sur_line, 2)
-            # Make the surface a transfinite surface
-            gmsh.model.geo.mesh.set_transfinite_surface(cc_point_surfaces[-1])
-            # Convert the (perfectly triangle) surface into a quadrangle one.
-            gmsh.model.geo.mesh.set_recombine(2, cc_point_surfaces[-1])
         
         else:
             # line has at least 1 segment
