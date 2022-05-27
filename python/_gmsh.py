@@ -104,3 +104,14 @@ def create_circumference(points: 'list[int]') -> 'list[int]':
         output.append(gmsh.model.geo.add_line(points[i], points[i+1]))
     output.append(gmsh.model.geo.add_line(points[-1], points[0]))
     return output
+
+def create_fracture_point(point: tuple, intersection_IDs: dict) -> int:
+    intersection_ID = intersection_IDs.get(point, "DEFAULT")
+    if intersection_ID == "DEFAULT":
+        return gmsh.model.geo.add_point(point[0], point[1], 0)
+    elif intersection_ID is None:
+        gmsh_point = gmsh.model.geo.add_point(point[0], point[1], 0)
+        intersection_IDs[point] = gmsh_point
+        return gmsh_point
+    else:
+        return intersection_IDs.get(point)
