@@ -43,8 +43,10 @@ def pebi_grid_2D(
                     'dict[str, dict[str, float]]',
                     'dict[Any, dict[str, Iterable]]'] = None,
         cell_constraint_factor: float = 1/4,
-        cell_constraint_line_factor: float = None,
+        cell_constraint_parallel_factor: float = None,
+        cell_constraint_perpendicular_factor: float = None,
         cell_constraint_point_factor: float = None,
+        cell_constraint_refinement_factor: float = None,
         min_CC_threshold_distance: float = 0.05,
         max_CC_threshold_distance: float = 0.2,
         CC_mesh_sampling: int = 100,
@@ -231,16 +233,27 @@ def pebi_grid_2D(
             around cell constraints, as compared to supplied cell_dimensions.
             Equivalent to CCFactor in MRST/UPR/pebiGrid2D. Defaults to 1/4.
 
-        cell_constraint_line_factor (float, optional): The size used for cells
-            around cell constraint lines, as compared to the supplied
-            cell_dimensions. Overrides cell_constraint_factor for lines. If
-            set to None, cell_constraint_factor will be used for lines.
-            Defaults to None.
+        cell_constraint_parallel_factor (float, optional): The size used
+            for the length of the cells within the cell constraints, as
+            compared to the supplied cell_dimensions. Overrides
+            cell_constraint_factor for lines. If set to None,
+            cell_constraint_factor will be used for length. Defaults to None.
+        
+        cell_constraint_perpendicular_factor (float, optional): The size used
+            for the width of the cells within the cell constraints, as
+            compared to the supplied cell_dimensions. Overrides
+            cell_constraint_factor for lines. If set to None,
+            cell_constraint_factor will be used for length. Defaults to None.
             
         cell_constraint_point_factor (float, optional): The size used for cells
             around cell constraint points, as compared to the supplied
             cell_dimensions. Overrides cell_constraint_factor for points. If
             set to None, cell_constraint_factor will be used for points.
+            Defaults to None.
+
+        cell_constraint_refinement_factor (float, optional): The cell size in
+            the refinement along the cell constraint lines. If set to None,
+            cell_dimensions will be used and no refinement will be done.
             Defaults to None.
 
         min_CC_threshold_distance (float, optional): Distance from cell
@@ -303,10 +316,14 @@ def pebi_grid_2D(
         max_intersection_distance = max_FC_threshold_distance
     if cell_constraints is None:
         cell_constraints = []
-    if cell_constraint_line_factor is None:
-        cell_constraint_line_factor = cell_constraint_factor
+    if cell_constraint_parallel_factor is None:
+        cell_constraint_parallel_factor = cell_constraint_factor
+    if cell_constraint_perpendicular_factor is None:
+        cell_constraint_perpendicular_factor = cell_constraint_factor
     if cell_constraint_point_factor is None:
         cell_constraint_point_factor = cell_constraint_factor
+    if cell_constraint_refinement_factor is None:
+        cell_constraint_refinement_factor = cell_dimensions
 
     # Format Gmsh algorithms
     mesh_algorithm = format_meshing_algorithm(mesh_algorithm)
@@ -362,7 +379,8 @@ def pebi_grid_2D(
     cc_point_surfaces = []      # Holds surfaces around CC points
     cc_line_surfaces = []       # Holds surfaces around CC lines
     cc_point_size = cell_constraint_point_factor * cell_dimensions  # Cell size around points
-    cc_line_size = cell_constraint_line_factor * cell_dimensions    # Cell size around lines
+    cc_parallel_size = cell_constraint_parallel_factor * cell_dimensions    # Cell size along lines
+    cc_perpendicular_size = cell_constraint_perpendicular_factor * cell_dimensions    # Cell size across lines
     for line in cell_constraints:
         if len(line) == 1:
             # line is a single point
@@ -373,7 +391,7 @@ def pebi_grid_2D(
         else:
             # line has at least 1 line segment
             create_cell_constraint_line(
-                line, cc_line_size, cc_loops, cc_line_surfaces, cc_lines
+                line, cc_parallel_size, cc_perpendicular_size, cc_loops, cc_line_surfaces, cc_lines
             )
 
     # Create curve loop of circumference
@@ -427,7 +445,7 @@ def pebi_grid_2D(
         None,
         curve_list=cc_lines,
         sampling=CC_mesh_sampling,
-        min_size=cc_line_size,
+        min_size=cell_constraint_refinement_factor * cell_dimensions,
         max_size=cell_dimensions,
         min_distance=min_CC_threshold_distance,
         max_distance=max_CC_threshold_distance,

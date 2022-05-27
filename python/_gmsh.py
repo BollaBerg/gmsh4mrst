@@ -170,7 +170,8 @@ def create_cell_constraint_point(point: tuple,
 
 
 def create_cell_constraint_line(line: 'list[tuple]',
-                                cc_line_size: float,
+                                cc_parallel_size: float,
+                                cc_perpendicular_size: float,
                                 cc_loops: list,
                                 cc_line_surfaces: list,
                                 cc_lines: list):
@@ -192,7 +193,7 @@ def create_cell_constraint_line(line: 'list[tuple]',
 
     # Create starting points, one along the normal vector and one
     # opposite of the normal vector
-    point_1, point_2 = get_extruded_points(line[0], normal_x, normal_y, cc_line_size)
+    point_1, point_2 = get_extruded_points(line[0], normal_x, normal_y, cc_perpendicular_size)
     
     # Create actual Gmsh points of the starting points
     start_1 = gmsh.model.geo.add_point(point_1[0], point_1[1], 0)
@@ -218,7 +219,7 @@ def create_cell_constraint_line(line: 'list[tuple]',
         # Like for the start point, we create two extrusions - one 
         # along the normal vector, and one opposite of it
         end_point_1, end_point_2 = get_extruded_points(
-            line[i], normal_x, normal_y, cc_line_size
+            line[i], normal_x, normal_y, cc_perpendicular_size
         )
         # If the line bends towards the right (creating an A-shape),
         # then we must flip the points. This ensures that the start-
@@ -236,7 +237,7 @@ def create_cell_constraint_line(line: 'list[tuple]',
         # the difference between the parallel lines is likely very small
         line_length = distance(line[i-1], line[i])
         parallel_line_points = calculate_number_of_points(
-            line_length, cc_line_size
+            line_length, cc_parallel_size
         )
 
         end_line = create_transfinite_cc_box(
@@ -257,7 +258,7 @@ def create_cell_constraint_line(line: 'list[tuple]',
     delta_y = line[-1][1] - line[-2][1]
     normal_x, normal_y = get_perpendicular(delta_x, delta_y)
     # Use the normal vector to get extrusion points
-    end_point_2, end_point_1 = get_extruded_points(line[-1], normal_x, normal_y, cc_line_size)
+    end_point_2, end_point_1 = get_extruded_points(line[-1], normal_x, normal_y, cc_perpendicular_size)
 
     # Create actual Gmsh points from the extrusion points
     end_1 = gmsh.model.geo.add_point(end_point_1[0], end_point_1[1], 0)
@@ -268,7 +269,7 @@ def create_cell_constraint_line(line: 'list[tuple]',
     # the difference between the parallel lines is likely very small
     line_length = distance(line[-1], line[-2])
     parallel_line_points = calculate_number_of_points(
-        line_length, cc_line_size
+        line_length, cc_parallel_size
     )
 
     # Create a transfinite surface out of the created CC box
