@@ -21,8 +21,8 @@ from _gmsh import (
 
 def pebi_grid_2D(
         cell_dimensions: float,
-        shape: list,
         *,
+        shape: list = None,
         face_constraints: Union[
                     'list[list[Iterable]]',
                     'dict[str, float]',
@@ -64,7 +64,8 @@ def pebi_grid_2D(
     Args:
         cell_dimensions (float): Base dimensions of each cell.
 
-        shape (Iterable[float] | Iterable[Iterable[float]] | dict[str, float]):
+        shape (Iterable[float] | Iterable[Iterable[float]] | dict[str, float],
+                optional):
             Size or shape of the domain.
             Legal forms:
                 Iterable[float]: Shape = (xmax, ymax), and is the size of a 
@@ -93,6 +94,8 @@ def pebi_grid_2D(
                                 "y": [0, 0.2, 0, 1, 1]
                             }
                         >>> shape = {"x": [0, 1, 1, 0], "y": [0, 0, 1, 1]}
+            If None, shape will be set to the square between (0, 0) and (1, 1).
+            Defaults to None.
             NOTE: Any constraints must be wholly within the supplied domain!
 
         face_constraints (list[Iterable] | dict[str, float] | dict[str, Iterable]
@@ -290,6 +293,8 @@ def pebi_grid_2D(
             frontend and show the created mesh. Defaults to False.
     """
     # Handle default values
+    if shape is None:
+        shape = [(0, 0), (1, 0), (1, 1), (0, 1)]
     if face_constraints is None:
         face_constraints = []
     if min_intersection_distance is None:
