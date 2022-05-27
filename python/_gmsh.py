@@ -1,5 +1,10 @@
 import gmsh
 
+from _geometry import (
+    get_perpendicular, get_extruded_points, get_midpoint,
+    line_bends_towards_right, distance, calculate_number_of_points,
+)
+
 def create_transfinite_cc_box(
         start_1,
         start_2,
@@ -156,3 +161,110 @@ def create_cell_constraint_point(point: tuple,
     gmsh.model.geo.mesh.set_transfinite_surface(cc_point_surfaces[-1])
     # Convert the (perfectly triangle) surface into a quadrangle one.
     gmsh.model.geo.mesh.set_recombine(2, cc_point_surfaces[-1])
+
+
+def create_cell_constraint_line(line: 'list[tuple]',
+                                cc_line_size: float,
+                                cc_loops: list,
+                                cc_line_surfaces: list):
+    """Handle everything needed and create transfinite "box" for CC line
+
+
+    Args:
+        line (list[tuple]): The CC line, in shape [(x1, y1), (x2, y2), ...]
+        cc_line_size (float): The wanted length of each line segment
+        cc_loops (list): A list of CC curve loops, to append to
+        cc_line_surfaces (list): A list of CC line surfaces, to append to
+    """
+    # We first handle the start, then all mid points, then the end
+    # Compute the normal vector of the line from start- to next point
+    delta_x = line[1][0] - line[0][0]
+    delta_y = line[1][1] - line[0][1]
+    normal_x, normal_y = get_perpendicular(delta_x, delta_y)
+
+    # Create starting points, one along the normal vector and one
+    # opposite of the normal vector
+    point_1, point_2 = get_extruded_points(line[0], normal_x, normal_y, cc_line_size)
+    
+    # Create actual Gmsh points of the starting points
+    start_1 = gmsh.model.geo.add_point(point_1[0], point_1[1], 0)
+    start_2 = gmsh.model.geo.add_point(point_2[0], point_2[1], 0)
+    # Make a start line for the polygon surrounding our CC line
+    start_line = gmsh.model.geo.add_line(start_1, start_2)
+    # Convert the start line into a transfinite curve. We again use 2
+    # transfinite points, leading to a width of 1 cell
+    gmsh.model.geo.mesh.set_transfinite_curve(start_line, 2)
+
+    # Handle all midpoints
+    for i in range(1, len(line) - 1):
+        # We find the normal vector by finding the midpoint of point
+        # [i-1] and [1+1], then the vector from this midpoint to [i]
+        midpoint = get_midpoint(line[i-1], line[i+1])
+        normal_x = line[i][0] - midpoint[0]
+        normal_y = line[i][1] - midpoint[1]
+        # If the points are in a line, we simply use the normal vector
+        # from earlier
+        if normal_x == normal_y == 0:
+            normal_x, normal_y = normal_x, normal_y
+        # Like for the start point, we create two extrusions - one 
+        # along the normal vector, and one opposite of it
+        end_point_1, end_point_2 = get_extruded_points(
+            line[i], normal_x, normal_y, cc_line_size
+        )
+        # If the line bends towards the right (creating an A-shape),
+        # then we must flip the points. This ensures that the start-
+        # and end points make a nice rectangle (compared to the twisted
+        # rectangle we'd get otherwise)
+        if line_bends_towards_right(line[i-1], line[i], line[i+1]):
+            end_point_1, end_point_2 = end_point_2, end_point_1
+        
+        # Create actual Gmsh points of the extrusion points
+        end_1 = gmsh.model.geo.add_point(end_point_1[0], end_point_1[1], 0)
+        end_2 = gmsh.model.geo.add_point(end_point_2[0], end_point_2[1], 0)
+        
+        # Compute the transfinite points of the parallel lines
+        # We use the line from start_2 -> end_1 as our measuring stick, as
+        # the difference between the parallel lines is likely very small
+        line_length = distance(line[i-1], line[i])
+        parallel_line_points = calculate_number_of_points(
+            line_length, cc_line_size
+        )
+
+        end_line = create_transfinite_cc_box(
+            start_1, start_2, start_line,
+            end_1, end_2,
+            cc_loops, cc_line_surfaces, parallel_line_points
+        )
+
+        # Convert the previous end line to a new start line
+        # Note the flip (end_2 -> start_1 and vice versa)
+        # This ensures we get neat rectangles for each line segment
+        start_1, start_2 = end_2, end_1
+        start_line = -end_line
+    
+    # Handle the end point
+    # Same as for the start point - compute the normal vector
+    delta_x = line[-1][0] - line[-2][0]
+    delta_y = line[-1][1] - line[-2][1]
+    normal_x, normal_y = get_perpendicular(delta_x, delta_y)
+    # Use the normal vector to get extrusion points
+    end_point_2, end_point_1 = get_extruded_points(line[-1], normal_x, normal_y, cc_line_size)
+
+    # Create actual Gmsh points from the extrusion points
+    end_1 = gmsh.model.geo.add_point(end_point_1[0], end_point_1[1], 0)
+    end_2 = gmsh.model.geo.add_point(end_point_2[0], end_point_2[1], 0)
+
+    # Compute the transfinite points of the parallel lines
+    # We use the line from start_2 -> end_1 as our measuring stick, as
+    # the difference between the parallel lines is likely very small
+    line_length = distance(line[-1], line[-2])
+    parallel_line_points = calculate_number_of_points(
+        line_length, cc_line_size
+    )
+
+    # Create a transfinite surface out of the created CC box
+    create_transfinite_cc_box(
+        start_1, start_2, start_line,
+        end_1, end_2,
+        cc_loops, cc_line_surfaces, parallel_line_points
+    )
