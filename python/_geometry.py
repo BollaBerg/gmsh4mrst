@@ -84,3 +84,11 @@ def distance(point_1, point_2) -> float:
 
 def calculate_number_of_points(line_length, wanted_segment_size):
     return ceil(line_length / wanted_segment_size) + 1
+
+
+def get_midpoint(point_1: 'tuple[float, float]',
+                 point_2: 'tuple[float, float]') -> 'tuple[float, float]':
+    return (
+        0.5 * (point_1[0] + point_2[0]),
+        0.5 * (point_1[1] + point_2[1])
+    )
