@@ -182,9 +182,6 @@ function [G, Pts, F] = pebiGrid2DGmshBackground(resGridSize, shape, varargin)
 %                   closer than in other areas. Defaults to
 %                   @(x) ones(size(x,1),1).
 %
-%   FCRefinement - logical. Whether refinement should be done around the
-%                   cell constraints. Defaults to false.
-%
 %   sufFCCond - logical. Whether we should enforce the sufficient and
 %                   necessary face constraint condition. If false, we
 %                   instead enforce a less strict condition and remove any
@@ -251,7 +248,6 @@ defaultInterpolateFC = false;
 defaultFCFactor = 1/2;
 defaultCircleFactor = 0.6;
 defaultFCRho = @(x) ones(size(x,1),1);
-defaultFCRefinement = false;
 defaultSufFCCond = true;
 
     function valid = validMeshAlgorithm(x)
@@ -326,7 +322,6 @@ addParameter(p, 'interpolateFC', defaultInterpolateFC, @islogical);
 addParameter(p, 'FCFactor', defaultFCFactor, validFloat);
 addParameter(p, 'circleFactor', defaultCircleFactor, validFloat);
 addParameter(p, 'FCRho', defaultFCRho);
-addParameter(p, 'FCRefinement', defaultFCRefinement, @islogical);
 addParameter(p, 'sufFCCond', defaultSufFCCond, @islogical);
 
 parse(p, resGridSize, shape, varargin{:});
@@ -350,16 +345,7 @@ end
 
 % Set domain function
 if length(shape) == 2
-	rectangle = [0,0; shape(1), shape(2)];
-	fd = @(p,varargin) drectangle(p, 0, shape(1), 0, shape(2));
-	corners = [0,0; 0,shape(2); shape(1),0; shape(1), shape(2)];
-	vararg  = [];
     shape = [0, 0; shape(1), 0; shape(1), shape(2); 0, shape(2)];
-else
-	rectangle = [min(shape); max(shape)];
-	corners   = shape;
-	fd        = @dpoly;
-	vararg    = [shape; shape(1,:)];
 end
 
 % Call Python, to compute background grid
@@ -399,7 +385,6 @@ FCGridSize = params.FCFactor * params.resGridSize;
 CCGridSize = params.FCFactor * params.resGridSize;
 CCRef = params.CCRefinement;
 circleFactor = params.circleFactor;
-FCRef = params.FCRefinement;
 % Workaound on Rho functions, to get things working
 CCRho = @(x) CCGridSize * params.CCRho(x);
 FCRho = params.FCRho;
@@ -476,7 +461,6 @@ if CCRef && ~isempty(wellPts)
         1.2*exp(minPdist2(x,wellPts)/CCEps));
     hfault = @(x) CCGridSize*params.faceConstraintFactor*hresw(x).*FCRho(x);
 else
-    hresw  = @(p) constFunc(p)/CCFactor;
     hfault = @(p) FCGridSize*FCRho(p);
 end
 
@@ -487,13 +471,6 @@ F = surfaceSites2D(faceConstraints, FCGridSize,...
                           'fcCut',         fcCut, ...
                           'interpolateFC', interpFL, ...
                           'distFun',       hfault);
-
-if FCRef && ~isempty(F.f.pts)
-  hresf = @(x) min((ones(size(x,1),1)/params.faceConstraintFactor), ...
-                    1.2*exp(minPdist2(x,F.f.pts)/FCEps));
-else
-  hresf = @(p) constFunc(p)/CCFactor;
-end
 
 % Remove tip sites outside domain
 if size(F.t.pts, 1) > 0
