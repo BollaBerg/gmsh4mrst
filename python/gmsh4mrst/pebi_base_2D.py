@@ -347,7 +347,7 @@ def pebi_base_2D(
     if face_constraint_point_factor is None:
         face_constraint_point_factor = face_constraint_factor
     if face_constraint_refinement_factor is None:
-        face_constraint_refinement_factor = cell_dimensions
+        face_constraint_refinement_factor = 1
     if cell_constraints is None:
         cell_constraints = []
     if cell_constraint_parallel_factor is None:
@@ -357,7 +357,7 @@ def pebi_base_2D(
     if cell_constraint_point_factor is None:
         cell_constraint_point_factor = cell_constraint_factor
     if cell_constraint_refinement_factor is None:
-        cell_constraint_refinement_factor = cell_dimensions
+        cell_constraint_refinement_factor = 1
 
     # Format Gmsh algorithms
     mesh_algorithm = format_meshing_algorithm(mesh_algorithm)
@@ -508,15 +508,15 @@ if __name__ == "__main__":
     pebi_base_2D(
         0.2, 
         face_constraints=[
-            [(0.25, 0.25), (0.75, 0.75)],
+            [(0.25, 0.25), (0.4, 0.5), (0.7, 0.7)],
+            [(0.8, 0.1), (0.9, 0.2)]
         ],
         cell_constraints=[
-            [(0.1, 0.9), (0.9, 0.9)],
+            [(0.1, 0.1)],
+            [(0.5, 0.8), (0.6, 0.7), (0.7, 0.8), (0.9, 0.6)],
         ],
         shape=[
             (0, 0), (0.5, 0.2), (1, 0), (1, 1), (0, 1)
         ],
-        mesh_algorithm="DelQuad",
-        # recombination_algorithm="simplefull",
         savename=None,
         run_frontend=True)
