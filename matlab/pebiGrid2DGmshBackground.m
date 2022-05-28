@@ -124,16 +124,16 @@ function [G, Pts, F] = pebiGrid2DGmshBackground(resGridSize, shape, varargin)
 %                       recombination, smoothing and subdivision.
 %
 
-defaultFaceConstraints = struct;
-defaultFaceConstraintFactor = 1/3;
+defaultFaceConstraints = {};
+defaultFaceConstraintFactor = 1;
 defaultMinThresholdDistance = 0.05;
 defaultMaxThresholdDistance = 0.2;
 defaultFaceIntersectionFactor = string(missing);   % => Python None
 defaultMinIntersectionDistance = string(missing);
 defaultMaxIntersectionDistance = string(missing);
 defaultFractureMeshSampling = 100;
-defaultCellConstraints = struct;
-defaultCellConstraintFactor = 1/4;
+defaultCellConstraints = {};
+defaultCellConstraintFactor = 1;
 defaultCellConstraintLineFactor = string(missing);
 defaultCellConstraintPointFactor = string(missing);
 defaultMeshAlgorithm = "Delaunay";
@@ -235,35 +235,55 @@ cellConstraints = params.cellConstraints;
 if iscell(cellConstraints)
     pyCellConstraints = constraintCellArrayToStruct(cellConstraints);
 end
+
 % Handle shape, to enable polygon shape
 shape = params.shape;
 if length(shape) > 2
     pyShape = shapeArrayToStruct(shape);
 end
 
-% Call Python, to compute background grid
-py.gmsh4mrst.background_grid_2D(...
-    cell_dimensions = params.resGridSize, ...
-    shape = pyShape, ...
-    face_constraints = pyFaceConstraints, ...
-    face_constraint_factor = params.faceConstraintFactor, ...
-    min_threshold_distance = params.minThresholdDistance, ...
-    max_threshold_distance = params.maxThresholdDistance, ...
-    face_intersection_factor = params.faceIntersectionFactor, ...
-    min_intersection_distance = params.minIntersectionDistance, ...
-    max_intersection_distance = params.maxIntersectionDistance, ...
-    fracture_mesh_sampling = params.fractureMeshSampling, ...
-    cell_constraints = pyCellConstraints, ...
-    cell_constraint_factor = params.cellConstraintFactor, ...
-    cell_constraint_line_factor = params.cellConstraintLineFactor, ...
-    cell_constraint_point_factor = params.cellConstraintPointFactor, ...
-    mesh_algorithm = params.meshAlgorithm, ...
-    recombination_algorithm = params.recombinationAlgorithm, ...
-    savename = "TEMP_Gmsh_MRST.m");
+% Set domain function
+if length(shape) == 2
+	rectangle = [0,0; shape(1), shape(2)];
+	fd = @(p,varargin) drectangle(p, 0, shape(1), 0, shape(2));
+	corners = [0,0; 0,shape(2); shape(1),0; shape(1), shape(2)];
+	vararg  = [];
+    shape = [0, 0; shape(1), 0; shape(1), shape(2); 0, shape(2)];
+else
+	rectangle = [min(shape); max(shape)];
+	corners   = shape;
+	fd        = @dpoly;
+	vararg    = [shape; shape(1,:)];
+end
 
-if isfile('TEMP_Gmsh_MRST.m')
-    G = gmshToMRST('TEMP_Gmsh_MRST.m');
-    delete TEMP_Gmsh_MRST.m
+% Call Python, to compute background grid
+% py.gmsh4mrst.background_grid_2D(...
+%     cell_dimensions = params.resGridSize, ...
+%     shape = pyShape, ...
+%     face_constraints = pyFaceConstraints, ...
+%     face_constraint_factor = params.faceConstraintFactor, ...
+%     min_FC_threshold_distance = params.minThresholdDistance, ...
+%     max_FC_threshold_distance = params.maxThresholdDistance, ...
+%     face_intersection_factor = params.faceIntersectionFactor, ...
+%     min_intersection_distance = params.minIntersectionDistance, ...
+%     max_intersection_distance = params.maxIntersectionDistance, ...
+%     fracture_mesh_sampling = params.fractureMeshSampling, ...
+%     cell_constraints = pyCellConstraints, ...
+%     cell_constraint_factor = params.cellConstraintFactor, ...
+%     cell_constraint_line_factor = params.cellConstraintLineFactor, ...
+%     cell_constraint_point_factor = params.cellConstraintPointFactor, ...
+%     min_CC_threshold_distance = params.minThresholdDistance, ...
+%     max_CC_threshold_distance = params.maxThresholdDistance, ...
+%     mesh_algorithm = params.meshAlgorithm, ...
+%     recombination_algorithm = params.recombinationAlgorithm, ...
+%     savename = "TEMP_Gmsh_MRST.m");
+
+if isfile('TEST.m')
+    pyOutput = gmshToMRST('TEST.m');
+    G = clippedPebi2D(pyOutput.nodes.coords, shape);
+%     delete TEMP_Gmsh_MRST.m
+else
+    error("No file generated. Something probably failed in Python!")
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -272,6 +292,13 @@ end
 % Adopt some variables used below
 FCGridSize = params.faceConstraintFactor * params.resGridSize;
 CCGridSize = params.cellConstraintFactor * params.resGridSize;
+CCRef = params.CCRefinement;
+circleFactor = params.circleFactor;
+FCRef = params.FCRefinement;
+% Dirty workaround
+CCRhoFunc = @(x) ones(size(x,1),1);
+CCRho = @(x) CCGridSize*CCRhoFunc(x);
+FCRho = CCRhoFunc;
 
 % Format interpolateCC
 if ~isempty(params.cellConstraints)
@@ -330,8 +357,8 @@ bisectPnt = (fLen.^2 - (circleFactor*fLen).^2 ...
 faultOffset = sqrt((circleFactor*fLen).^2 - bisectPnt.^2);
 sePtn = (1.0+faultOffset/CCGridSize)*sePtn;
 
-[wellPts, wGs, protPts, pGs] = ...
-    lineSites2D(cellConstraints, CCGridSize, ...
+[wellPts, ~, protectionPts, ~] ...
+    = lineSites2D(cellConstraints, CCGridSize, ...
                          'sePtn',         sePtn,...
                          'cCut',          cCut, ...
                          'protLayer',     params.protLayer,...
@@ -364,22 +391,6 @@ else
   hresf = @(p) constFunc(p)/CCFactor;
 end
 
-
-% Create reservoir grid points
-% Set domain function
-if length(shape) == 2
-	rectangle = [0,0; shape(1), shape(2)];
-	fd = @(p,varargin) drectangle(p, 0, shape(1), 0, shape(2));
-	corners = [0,0; 0,shape(2); shape(1),0; shape(1), shape(2)];
-	vararg  = [];
-    shape = [0, 0; shape(1), 0; shape(1), shape(2); 0, shape(2)];
-else
-	rectangle = [min(shape); max(shape)];
-	corners   = shape;
-	fd        = @dpoly;
-	vararg    = [shape; shape(1,:)];
-end
-
 % Remove tip sites outside domain
 if size(F.t.pts, 1) > 0
     innside = inpolygon(F.t.pts(:, 1), F.t.pts(:, 2), shape(:, 1), shape(:, 2));
@@ -403,12 +414,16 @@ if params.sufFCCond
 else
 	Pts = removeConflictPoints(G.nodes.coords,F.f.pts, F.f.Gs);
 end
-Pts  = [fPts; wPts; Pts];
+Pts  = [F.f.pts; wellPts; protectionPts; Pts];
+% For some reason, we sometimes get imaginary points (although with the
+% imaginary element = 0). We only care about real points!
+% We also remove some possible duplicates
+Pts = unique(real(Pts), 'rows');
 
 
 % Create grid
 if params.useMrstPebi
-	t    = delaunay(Pts);
+	t    = pyOutput(Pts);
 	% Fix boundary
 	pmid = (Pts(t(:,1),:)+Pts(t(:,2),:)+Pts(t(:,3),:))/3;% Compute centroids
 	t    = t(fd(pmid,vararg)<-0.001*CCFactor,:);   % Keep interior triangles
@@ -416,7 +431,7 @@ if params.useMrstPebi
 	G = triangleGrid(Pts, t);
 	G = pebi(G);
 else
-    G = clippedPebi2D(Pts, polyBdr);
+    G = clippedPebi2D(Pts, shape);
 end
 
 % label face constraint faces.
