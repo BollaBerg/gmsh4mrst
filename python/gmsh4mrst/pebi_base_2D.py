@@ -43,6 +43,7 @@ def pebi_base_2D(
         face_constraint_factor: float = 1/4,
         face_constraint_parallel_factor: float = None,
         face_constraint_perpendicular_factor: float = None,
+        face_constraint_perpendicular_cells: int = 3,
         face_constraint_point_factor: float = None,
         face_constraint_refinement_factor: float = None,
         min_FC_threshold_distance: float = 0.05,
@@ -57,6 +58,7 @@ def pebi_base_2D(
         cell_constraint_factor: float = 1/4,
         cell_constraint_parallel_factor: float = None,
         cell_constraint_perpendicular_factor: float = None,
+        cell_constraint_perpendicular_cells: int = 2,
         cell_constraint_point_factor: float = None,
         cell_constraint_refinement_factor: float = None,
         min_CC_threshold_distance: float = 0.05,
@@ -187,6 +189,12 @@ def pebi_base_2D(
             compared to the supplied face_dimensions. Overrides
             face_constraint_factor for lines. If set to None,
             face_constraint_factor will be used for width. Defaults to None.
+        
+        face_constraint_perpendicular_cells (int, optional): The number of 
+            transfinite cells to use across the face constraints. Should be
+            odd if the Delaunay grid is used directly, and even if the grid is
+            converted to a PEBI grid before use. More cells may make a "buffer
+            zone" around the constraints. Defaults to 3.
             
         face_constraint_point_factor (float, optional): The size used for cells
             around face constraint points, as compared to the supplied
@@ -274,6 +282,12 @@ def pebi_base_2D(
             compared to the supplied cell_dimensions. Overrides
             cell_constraint_factor for lines. If set to None,
             cell_constraint_factor will be used for width. Defaults to None.
+        
+        cell_constraint_perpendicular_cells (int, optional): The number of 
+            transfinite cells to use across the cell constraints. Should be
+            even if the Delaunay grid is used directly, and odd if the grid is
+            converted to a PEBI grid before use. More cells may make a "buffer
+            zone" around the constraints. Defaults to 2.
             
         cell_constraint_point_factor (float, optional): The size used for cells
             around cell constraint points, as compared to the supplied
@@ -397,14 +411,14 @@ def pebi_base_2D(
             # line is a single point
             create_cell_constraint_point(
                 line[0], face_point_size, face_loops, face_point_surfaces, face_lines,
-                nodes=3
+                nodes=face_constraint_perpendicular_cells
             )
         
         else:
             # line has at least 1 line segment
             create_cell_constraint_line(
                 line, face_parallel_size, face_perpendicular_size, face_loops,
-                face_line_surfaces, face_lines, perp_nodes=3
+                face_line_surfaces, face_lines, perp_nodes=face_constraint_perpendicular_cells
             )
 
     # Create cell constraints
@@ -420,14 +434,14 @@ def pebi_base_2D(
             # line is a single point
             create_cell_constraint_point(
                 line[0], cc_point_size, cc_loops, cc_point_surfaces, cc_lines,
-                nodes=4
+                nodes=cell_constraint_perpendicular_cells
             )
         
         else:
             # line has at least 1 line segment
             create_cell_constraint_line(
                 line, cc_parallel_size, cc_perpendicular_size, cc_loops,
-                cc_line_surfaces, cc_lines, perp_nodes=4
+                cc_line_surfaces, cc_lines, perp_nodes=cell_constraint_perpendicular_cells
             )
 
     # Create curve loop of circumference
