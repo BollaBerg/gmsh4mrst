@@ -82,7 +82,7 @@ function G = delaunayGrid2DGmsh(resGridSize, size, varargin)
 %   cellConstraintPerpendicularFactor - Float. The size used across cells
 %                   around cell constraint lines, as compared to the
 %                   supplied resGridSize. Overrides cellConstraintFactor
-%                   along the cells. If missing, cellConstraintFactor will
+%                   across the cells. If missing, cellConstraintFactor will
 %                   be used. Defaults to missing.
 %
 %   cellConstraintPointFactor - Float. The size used for cells around cell
