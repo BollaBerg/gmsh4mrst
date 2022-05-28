@@ -141,7 +141,7 @@ defaultRecombinationAlgorithm = string(missing);
 
 % pebiGrid2D arguments
 defaultInterpolateCC = false;
-defaultProtD = {{@(p) ones(size(p,1),1)*resGridSize/10}};
+defaultProtD = {@(x) ones(size(x,1),1)*resGridSize/4};
 defaultProtLayer = false;
 defaultInterpolateFC = false;
 defaultCCRefinement = false;
@@ -149,6 +149,8 @@ defaultCircleFactor = 0.6;
 defaultFCRefinement = false;
 defaultSufFCCond = true;
 defaultUseMrstPebi = false;
+defaultFCFactor = 1/2;
+defaultCCFactor = 1/4;
 
 
     function valid = validMeshAlgorithm(x)
@@ -213,15 +215,17 @@ addParameter(p, 'meshAlgorithm', defaultMeshAlgorithm, @validMeshAlgorithm);
 addParameter(p, 'recombinationAlgorithm', defaultRecombinationAlgorithm, @validRecombinationAlgorithm);
 
 % pebiGrid2D parameters
-addParameter(p, 'interpolateCC', defaultInterpolateCC, @isboolean);
+addParameter(p, 'interpolateCC', defaultInterpolateCC, @islogical);
 addParameter(p, 'protD', defaultProtD);
-addParameter(p, 'protLayer', defaultProtLayer, @isboolean);
-addParameter(p, 'interpolateFC', defaultInterpolateFC, @isboolean);
-addParameter(p, 'CCRefinement', defaultCCRefinement, @isboolean);
+addParameter(p, 'protLayer', defaultProtLayer, @islogical);
+addParameter(p, 'interpolateFC', defaultInterpolateFC, @islogical);
+addParameter(p, 'CCRefinement', defaultCCRefinement, @islogical);
 addParameter(p, 'circleFactor', defaultCircleFactor, validFloat);
-addParameter(p, 'FCRefinement', defaultFCRefinement, @isboolean);
-addParameter(p, 'sufFCCond', defaultSufFCCond, @isboolean);
-addParameter(p, 'useMrstPebi', defaultUseMrstPebi, @isboolean);
+addParameter(p, 'FCRefinement', defaultFCRefinement, @islogical);
+addParameter(p, 'sufFCCond', defaultSufFCCond, @islogical);
+addParameter(p, 'useMrstPebi', defaultUseMrstPebi, @islogical);
+addParameter(p, 'FCFactor', defaultFCFactor, validFloat);
+addParameter(p, 'CCFactor', defaultCCFactor, validFloat);
 
 parse(p, resGridSize, shape, varargin{:});
 params = p.Results;
@@ -289,12 +293,12 @@ end
 %%%%%%%%%%% START OF CODE ADAPTED FROM pebiGrid2D %%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Adopt some variables used below
-FCGridSize = params.faceConstraintFactor * params.resGridSize;
-CCGridSize = params.cellConstraintFactor * params.resGridSize;
+FCGridSize = params.FCFactor * params.resGridSize;
+CCGridSize = params.FCFactor * params.resGridSize;
 CCRef = params.CCRefinement;
 circleFactor = params.circleFactor;
 FCRef = params.FCRefinement;
-% Dirty workaround
+% Workaound on Rho functions, to get things working
 CCRhoFunc = @(x) ones(size(x,1),1);
 CCRho = @(x) CCGridSize*CCRhoFunc(x);
 FCRho = CCRhoFunc;
@@ -303,17 +307,17 @@ FCRho = CCRhoFunc;
 if ~isempty(params.cellConstraints)
     if (numel(params.interpolateCC) == 1)
         % Extend interpolateCC to be an array of length = len(cellConstraints)
-        params.interpolateCC = repmat(params.interpolateCC, numel(params.cellConstraints),1);
+        params.interpolateCC = repmat(params.interpolateCC, numel(cellConstraints),1);
     end
     % Assert that each cellConstraint has an interpolateCC-value
-    assert(numel(params.interpolateCC)==numel(params.cellConstraints));
+    assert(numel(params.interpolateCC)==numel(cellConstraints));
     
     if numel(params.protD) == 1
         % Extend protD to be an array of length = len(cellConstraints)
-        params.protD = repmat(params.protD,numel(params.cellConstraints),1);
+        params.protD = repmat(params.protD,numel(cellConstraints),1);
     end
     % Assert that each cellConstraint has a protD
-    assert(numel(params.protD) == numel(params.cellConstraints));
+    assert(numel(params.protD) == numel(cellConstraints));
 end
 
 % Format interpolateFC

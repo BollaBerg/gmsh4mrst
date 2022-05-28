@@ -22,21 +22,20 @@ G = pebiGrid2DGmshBackground( ...
     resGridSize, ...
     domain, ...
     'faceConstraints', faceConstraints, ...
-    'cellConstraints', cellConstraints); % ...
-%     'faceConstraintFactor', 1/3, ...
-%     'meshAlgorithm', 'DelQuad' ...
-% );
+    'cellConstraints', cellConstraints, ...
+    'protLayer', true ...
+);
 
 % Plot result
 hold on;
 plotGrid(G, 'faceColor', 'none');
 
 % Plot lines
-plot(faceConstraints{1}(:, 1), faceConstraints{1}(:, 2), 'lineWidth', 2, 'color', 'magenta', 'markersize', 3);
-plot(faceConstraints{2}(:, 1), faceConstraints{2}(:, 2), 'lineWidth', 2, 'color', 'magenta', 'markersize', 3);
-plot(faceConstraints{3}(:, 1), faceConstraints{3}(:, 2), 'lineWidth', 2, 'color', 'magenta', 'markersize', 3);
-plot(cellConstraints{1}(:, 1), cellConstraints{1}(:, 2), 'LineWidth', 1, 'Color', 'blue', 'LineStyle','--', Marker='o');
-plot(cellConstraints{2}(:, 1), cellConstraints{2}(:, 2), 'LineWidth', 1, 'Color', 'blue', 'LineStyle','--');
+plot(faceConstraints{1}(:, 1), faceConstraints{1}(:, 2), 'lineWidth', 2, 'color', 'magenta', 'markersize', 3, Marker='+', LineStyle='none');
+plot(faceConstraints{2}(:, 1), faceConstraints{2}(:, 2), 'lineWidth', 2, 'color', 'magenta', 'markersize', 3, Marker='*', LineStyle='none');
+plot(faceConstraints{3}(:, 1), faceConstraints{3}(:, 2), 'lineWidth', 2, 'color', 'magenta', 'markersize', 3, Marker='x', LineStyle='none');
+plot(cellConstraints{1}(:, 1), cellConstraints{1}(:, 2), 'LineWidth', 1, 'Color', 'blue', 'LineStyle','--', Marker='o', LineStyle='none');
+plot(cellConstraints{2}(:, 1), cellConstraints{2}(:, 2), 'LineWidth', 1, 'Color', 'blue', 'LineStyle','--', Marker='.', LineStyle='none');
 
 % Save plot
 f = gcf;
