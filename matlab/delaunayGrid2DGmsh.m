@@ -7,83 +7,107 @@ function G = delaunayGrid2DGmsh(resGridSize, size, varargin)
 % ARGUMENTS
 %   resGridSize     - Size of the reservoir grid cells, in units of meters.
 %
-% OPTIONAL PARAMETERS
 %   shape           - Vector, length 2, [xmax, ymax], of physical size in
 %                   units of meters of the computational domain OR
 %                   - k x 2 array of coordinates. Each coordinate
 %                   corresponds to a vertex in the polygon boundary. The
 %                   coordinates must be ordered clockwise or counter
 %                   clockwise.
-%                   Defaults to [1, 1]
 %
-%   faceConstraints - A struct of vectors. Each vector, size nf x 2, is the
-%                   coordinates of a surface-trace. The surface is
+% OPTIONAL PARAMETERS
+%   faceConstraints - A cell array of float arrays. Each array, size nf x 2
+%                   is the coordinates of a surface-trace. The surface is
 %                   assumed to be linear between the coordinates. The
 %                   function will place sites such that the surface is
-%                   traced by faces of the grid. Defaults to empty
-%                   struct.
+%                   traced by faces of the grid. Defaults to empty cell
+%                   array.
 %
-%   faceConstraintFactor - Float. The size of the cells close to the face
-%                   constraints, as compared to supplied cell_dimensions.
-%                   Cells within min_threshold_distance will have size
-%                   face_constraint_factor * cell_dimensions. Equivalent
-%                   to FCFactor in MRST/UPR/pebiGrid2D. Defaults to 1/3.
+%   faceConstraintFactor - Float. The size of the background cells close to
+%                   the face constraints, as compared to supplied
+%                   resGridSize. Cells within minThresholdDistance of a
+%                   face constraint will have size faceConstraintFactor *
+%                   resGridSize. Defaults to 1/3.
 %
-%   minThresholdDistance - Float. Distance from face constraints where cell
-%                   dimensions will start increasing. Defaults to 0.05.
+%   minFCThresholdDistance - Float. Distance from face constraints where
+%                   cell dimensions will start scaling size. Defaults to
+%                   0.05.
 %
-%   maxThresholdDistance - Float. Distance from face constraints where cell
-%                   dimensions will be back to their default (max) value,
-%                   i.e. the supplied argument cell_dimensions. Defaults
+%   maxFCThresholdDistance - Float. Distance from face constraints where
+%                   cell dimensions will be back to their default (max)
+%                   value, i.e. the supplied argument resGridSize. Defaults
 %                   to 0.2.
 %
 %   faceIntersectionFactor - Float. The size of the cells close to
-%                   intersections between face constraints, as compared to supplied
-%                   cell_dimensions. Cells in min_intersection_distance
+%                   intersections between face constraints, as compared to
+%                   resGridSize. Cells within minIntersectionDistance
 %                   from an intersection will have size
-%                   face_intersection_factor * cell_dimensions.
-%                   If missing, no extra cell shaping will occur around
-%                   intersections. The factor is also used in "breaks" of
-%                   lines, i.e. if there is a sharp "turn" in a line
-%                   segment. Defaults to missing.
+%                   faceIntersectionFactor * resGridSize. If missing, no
+%                   extra cell shaping will occur around intersections.
+%                   Defaults to missing (aka python None).
 %
 %   minIntersectionDistance - Float. Distance from intersections where cell
-%                   dimensions will start increasing. If missing, will use
-%                   min_threshold_distance. Defaults to missing.
+%                   dimensions will start increasing. If missing, 
+%                   minThresholdDistance will be used. Defaults to missing.
 %
 %   maxIntersectionDistance - Float. Distance from intersections where
 %                   cell dimensions will be back to their default (max)
-%                   value, i.e. the supplied argument cell_dimensions. If
-%                   missing, will use min_threshold_distance. Defaults to
+%                   value, i.e. the supplied argument resGridSize. If
+%                   missing, minThresholdDistance will be used. Defaults to
 %                   missing.
 %
-%   fractureMeshSampling - Int. The number of points along the face
-%                   constraints should be sampled to calculate the
-%                   threshold distances. Defaults to 100.
+%   FCMeshSampling - Int. The number of points along the face constraints
+%                   should be sampled to calculate the threshold distances.
+%                   Defaults to 100.
 %
-%   cellConstraints - A struct of vectors. Each vector, size nf x 2, is a
-%                   line, which the method will attempt to place in the
-%                   center of the returned grid. The lines are assumed to
-%                   be linear between the coordinates. If a constraint is
-%                   only one coordinate, the line is treated as a point
-%                   constraint. Defaults to empty struct.
+%   cellConstraints - A cell array of float arrays. Each array, size nf x 2
+%                   is a line, which the method will attempt to place in
+%                   the center of cells in the returned grid. The lines are
+%                   assumed to be linear between the coordinates. If a
+%                   constraint is only one coordinate, the line is treated
+%                   as a point constraint. Defaults to empty cell array.
 %
 %   cellConstraintFactor - Float. The size used for cells around cell
-%                   constraints, as compared to supplied cell_dimensions.
-%                   Equivalent to CCFactor in MRST/UPR/pebiGrid2D.
-%                   Defaults to 1/4.
+%                   constraints, as compared to supplied resGridSize.
+%                   Cells within minThresholdDistance of a
+%                   cell constraint will have size cellConstraintFactor *
+%                   resGridSize. Only applies to the background grid.
+%                   Defaults to 1.
 %
-%   cellConstraintLineFactor - Float. The size used for cells around cell
-%                   constraint lines, as compared to the supplied
-%                   cell_dimensions. Overrides cell_constraint_factor for
-%                   lines. If missing, cell_constraint_factor will be
-%                   used for lines. Defaults to missing.
+%   cellConstraintParallelFactor - Float. The size used along cells around
+%                   cell constraint lines, as compared to the supplied
+%                   resGridSize. Overrides cellConstraintFactor along the
+%                   cells. If missing, cellConstraintFactor will be
+%                   used. Defaults to missing.
+%
+%   cellConstraintPerpendicularFactor - Float. The size used across cells
+%                   around cell constraint lines, as compared to the
+%                   supplied resGridSize. Overrides cellConstraintFactor
+%                   along the cells. If missing, cellConstraintFactor will
+%                   be used. Defaults to missing.
 %
 %   cellConstraintPointFactor - Float. The size used for cells around cell
 %                   constraint points, as compared to the supplied 
-%                   cell_dimensions. Overrides cell_constraint_factor for
-%                   points. If missing, cell_constraint_factor will be used
+%                   resGridSize. Overrides cellConstraintFactor for
+%                   points. If missing, cellConstraintFactor will be used
 %                   for points. Defaults to missing.
+%
+%   cellConstraintRefinementFactor - Float. The cell size factor that
+%                   should be used for cells around the cell constraint
+%                   lines. If missing, resGridSize will be used and no
+%                   refinement will be done. Default to missing.
+%
+%   minCCThresholdDistance - Float. Distance from cell constraints where
+%                   cell dimensions will start scaling size. Defaults to
+%                   0.05.
+%
+%   maxCCThresholdDistance - Float. Distance from cell constraints where
+%                   cell dimensions will be back to their default (max)
+%                   value, i.e. the supplied argument resGridSize. Defaults
+%                   to 0.2.
+%
+%   CCMeshSampling - Int. The number of points along the cell constraints
+%                   should be sampled to calculate the threshold distances.
+%                   Defaults to 100.
 %
 %   meshAlgoritm - String | Int. What meshing algorithm should be used.
 %                   Can either be the Gmsh-given ID of the algorithm or the
@@ -96,16 +120,18 @@ function G = delaunayGrid2DGmsh(resGridSize, size, varargin)
 %                       "DelQuad" = 8
 %                   Defaults to "Delaunay".
 %
-%   recombinationAlgorithm - String | Int. What recombination algorithm
-%                   should be used, and whether recombination should be
-%                   done. Recombination makes Gmsh attempt to create a
-%                   quadrangle mesh, rather than a triangle mesh. Can be
-%                   either the Gmsh-given ID of the algorithm or the name
-%                   of the algorithm. Legal values:
+%   recombinationAlgorithm - String | Int | missing. What recombination
+%                   algorithm should be used, and whether recombination
+%                   should be done. Recombination makes Gmsh attempt to
+%                   create a quadrangle mesh, rather than a triangle mesh.
+%                   Only applied to the background grid.
+%                   Can be either the Gmsh-given ID of the algorithm or the
+%                   name of the algorithm. Legal values:
 %                       "Simple" = 0
 %                       "Blossom" = 1
 %                       "SimpleFull" = 2
 %                       "BlossomFull" = 3
+%                       missing
 %                   If missing, no recombination will be done. Defaults to
 %                   missing.
 %
@@ -120,19 +146,29 @@ function G = delaunayGrid2DGmsh(resGridSize, size, varargin)
 %                       automatically perform a coarser mesh, followed by
 %                       recombination, smoothing and subdivision.
 %
+% RETURNS
+%   G       - Valid grid definition
+%
+% EXAMPLE:
+%
 
-defaultFaceConstraints = struct;
+defaultFaceConstraints = {};
 defaultFaceConstraintFactor = 1/3;
-defaultMinThresholdDistance = 0.05;
-defaultMaxThresholdDistance = 0.2;
+defaultMinFCThresholdDistance = 0.05;
+defaultMaxFCThresholdDistance = 0.2;
 defaultFaceIntersectionFactor = string(missing);   % => Python None
 defaultMinIntersectionDistance = string(missing);
 defaultMaxIntersectionDistance = string(missing);
-defaultFractureMeshSampling = 100;
-defaultCellConstraints = struct;
+defaultFCMeshSampling = 100;
+defaultCellConstraints = {};
 defaultCellConstraintFactor = 1/4;
-defaultCellConstraintLineFactor = string(missing);
+defaultCellConstraintParallelFactor = string(missing);
+defaultCellConstraintPerpendicularFactor = string(missing);
 defaultCellConstraintPointFactor = string(missing);
+defaultCellConstraintRefinementFactor = string(missing);
+defaultMinCCThresholdDistance = 0.05;
+defaultMaxCCThresholdDistance = 0.2;
+defaultCCMeshSampling = 100;
 defaultMeshAlgorithm = "Delaunay";
 defaultRecombinationAlgorithm = string(missing);
 
@@ -167,7 +203,7 @@ defaultRecombinationAlgorithm = string(missing);
     end
 
     validFloat = @(x) isfloat(x) && (x > 0);
-    validSize = @(x) isnumeric(x) && length(x) >= 2;
+    validShape = @(x) isnumeric(x) && length(x) >= 2;
     function valid = validOptionalFloat(x)
         if ismissing(x)
             valid = true;
@@ -181,19 +217,24 @@ defaultRecombinationAlgorithm = string(missing);
 
 p = inputParser;
 addRequired(p, 'resGridSize', validFloat);
-addRequired(p, 'size', validSize);
+addRequired(p, 'shape', validShape);
 addParameter(p, 'faceConstraints', defaultFaceConstraints);
 addParameter(p, 'faceConstraintFactor', defaultFaceConstraintFactor, validFloat);
-addParameter(p, 'minThresholdDistance', defaultMinThresholdDistance, validFloat);
-addParameter(p, 'maxThresholdDistance', defaultMaxThresholdDistance, validFloat);
+addParameter(p, 'minFCThresholdDistance', defaultMinFCThresholdDistance, validFloat);
+addParameter(p, 'maxFCThresholdDistance', defaultMaxFCThresholdDistance, validFloat);
 addParameter(p, 'faceIntersectionFactor', defaultFaceIntersectionFactor, @validOptionalFloat);
 addParameter(p, 'minIntersectionDistance', defaultMinIntersectionDistance, @validOptionalFloat);
 addParameter(p, 'maxIntersectionDistance', defaultMaxIntersectionDistance, @validOptionalFloat);
-addParameter(p, 'fractureMeshSampling', defaultFractureMeshSampling, validInt);
+addParameter(p, 'FCMeshSampling', defaultFCMeshSampling, validInt);
 addParameter(p, 'cellConstraints', defaultCellConstraints);
 addParameter(p, 'cellConstraintFactor', defaultCellConstraintFactor, validFloat);
-addParameter(p, 'cellConstraintLineFactor', defaultCellConstraintLineFactor, @validOptionalFloat);
+addParameter(p, 'cellConstraintParallelFactor', defaultCellConstraintParallelFactor, @validOptionalFloat);
+addParameter(p, 'cellConstraintPerpendicularFactor', defaultCellConstraintPerpendicularFactor, @validOptionalFloat);
 addParameter(p, 'cellConstraintPointFactor', defaultCellConstraintPointFactor, @validOptionalFloat);
+addParameter(p, 'cellConstraintRefinementFactor', defaultCellConstraintRefinementFactor, @validOptionalFloat);
+addParameter(p, 'minCCThresholdDistance', defaultMinCCThresholdDistance, validFloat);
+addParameter(p, 'maxCCThresholdDistance', defaultMaxCCThresholdDistance, validFloat);
+addParameter(p, 'CCMeshSampling', defaultCCMeshSampling, validInt);
 addParameter(p, 'meshAlgorithm', defaultMeshAlgorithm, @validMeshAlgorithm);
 addParameter(p, 'recombinationAlgorithm', defaultRecombinationAlgorithm, @validRecombinationAlgorithm);
 
@@ -209,7 +250,7 @@ if iscell(cellConstraints)
     cellConstraints = constraintCellArrayToStruct(cellConstraints);
 end
 % Handle shape, to enable polygon shape
-shape = p.Results.size;
+shape = p.Results.shape;
 if length(shape) > 2
     shape = shapeArrayToStruct(shape);
 end
@@ -219,24 +260,30 @@ py.gmsh4mrst.delaunay_grid_2D( ...
     shape = shape, ...
     face_constraints = faceConstraints, ...
     face_constraint_factor = p.Results.faceConstraintFactor, ...
-    min_threshold_distance = p.Results.minThresholdDistance, ...
-    max_threshold_distance = p.Results.maxThresholdDistance, ...
+    min_FC_threshold_distance = p.Results.minFCThresholdDistance, ...
+    max_FC_threshold_distance = p.Results.maxFCThresholdDistance, ...
     face_intersection_factor = p.Results.faceIntersectionFactor, ...
     min_intersection_distance = p.Results.minIntersectionDistance, ...
     max_intersection_distance = p.Results.maxIntersectionDistance, ...
-    fracture_mesh_sampling = p.Results.fractureMeshSampling, ...
+    fracture_mesh_sampling = p.Results.FCMeshSampling, ...
     cell_constraints = cellConstraints, ...
     cell_constraint_factor = p.Results.cellConstraintFactor, ...
-    cell_constraint_line_factor = p.Results.cellConstraintLineFactor, ...
+    cell_constraint_parallel_factor = p.Results.cellConstraintParallelFactor, ...
+    cell_constraint_perpendicular_factor = p.Results.cellConstraintPerpendicularFactor, ...
     cell_constraint_point_factor = p.Results.cellConstraintPointFactor, ...
+    cell_constraint_refinement_factor = p.Results.cellConstraintRefinementFactor, ...
+    min_CC_threshold_distance = p.Results.minCCThresholdDistance, ...
+    max_CC_threshold_distance = p.Results.maxCCThresholdDistance, ...
+    CC_mesh_sampling = p.Results.CCMeshSampling, ...
     mesh_algorithm = p.Results.meshAlgorithm, ...
     recombination_algorithm = p.Results.recombinationAlgorithm, ...
     savename = "TEMP_Gmsh_MRST.m");
-G = 0;
 
 if isfile('TEMP_Gmsh_MRST.m')
     G = gmshToMRST('TEMP_Gmsh_MRST.m');
     delete TEMP_Gmsh_MRST.m
+else
+    error("No file generated. Something failed in Python!")
 end
 
 end
