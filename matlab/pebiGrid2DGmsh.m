@@ -1,4 +1,4 @@
-function [G, Pts, F] = pebiGrid2DGmshBackground(resGridSize, shape, varargin)
+function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 % Construct a 2D PEBI grid, using Gmsh.
 %
 % This method creates a background mesh using background_grid_2D, then
@@ -6,8 +6,8 @@ function [G, Pts, F] = pebiGrid2DGmshBackground(resGridSize, shape, varargin)
 % but with Gmsh as a drop-in replacement of Distmesh.
 % 
 % SYNOPSIS:
-%   G = pebiGrid2DGmshBackground(resGridSize)
-%   G = pebiGrid2DGmshBackground(..., 'Name1', Value1, ...)
+%   G = pebiGrid2DGmsh(resGridSize)
+%   G = pebiGrid2DGmsh(..., 'Name1', Value1, ...)
 %
 % ARGUMENTS
 %   resGridSize     - Size of the reservoir grid cells, in units of meters.
