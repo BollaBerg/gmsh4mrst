@@ -124,16 +124,16 @@ function [G, Pts, F] = pebiGrid2DGmshBackground(resGridSize, shape, varargin)
 %                       recombination, smoothing and subdivision.
 %
 
-defaultFaceConstraints = struct;
-defaultFaceConstraintFactor = 1/3;
+defaultFaceConstraints = {};
+defaultFaceConstraintFactor = 1;
 defaultMinThresholdDistance = 0.05;
 defaultMaxThresholdDistance = 0.2;
 defaultFaceIntersectionFactor = string(missing);   % => Python None
 defaultMinIntersectionDistance = string(missing);
 defaultMaxIntersectionDistance = string(missing);
 defaultFractureMeshSampling = 100;
-defaultCellConstraints = struct;
-defaultCellConstraintFactor = 1/4;
+defaultCellConstraints = {};
+defaultCellConstraintFactor = 1;
 defaultCellConstraintLineFactor = string(missing);
 defaultCellConstraintPointFactor = string(missing);
 defaultMeshAlgorithm = "Delaunay";
@@ -141,7 +141,7 @@ defaultRecombinationAlgorithm = string(missing);
 
 % pebiGrid2D arguments
 defaultInterpolateCC = false;
-defaultProtD = {{@(p) ones(size(p,1),1)*resGridSize/10}};
+defaultProtD = {@(x) ones(size(x,1),1)*resGridSize/4};
 defaultProtLayer = false;
 defaultInterpolateFC = false;
 defaultCCRefinement = false;
@@ -149,6 +149,8 @@ defaultCircleFactor = 0.6;
 defaultFCRefinement = false;
 defaultSufFCCond = true;
 defaultUseMrstPebi = false;
+defaultFCFactor = 1/2;
+defaultCCFactor = 1/4;
 
 
     function valid = validMeshAlgorithm(x)
@@ -213,15 +215,17 @@ addParameter(p, 'meshAlgorithm', defaultMeshAlgorithm, @validMeshAlgorithm);
 addParameter(p, 'recombinationAlgorithm', defaultRecombinationAlgorithm, @validRecombinationAlgorithm);
 
 % pebiGrid2D parameters
-addParameter(p, 'interpolateCC', defaultInterpolateCC, @isboolean);
+addParameter(p, 'interpolateCC', defaultInterpolateCC, @islogical);
 addParameter(p, 'protD', defaultProtD);
-addParameter(p, 'protLayer', defaultProtLayer, @isboolean);
-addParameter(p, 'interpolateFC', defaultInterpolateFC, @isboolean);
-addParameter(p, 'CCRefinement', defaultCCRefinement, @isboolean);
+addParameter(p, 'protLayer', defaultProtLayer, @islogical);
+addParameter(p, 'interpolateFC', defaultInterpolateFC, @islogical);
+addParameter(p, 'CCRefinement', defaultCCRefinement, @islogical);
 addParameter(p, 'circleFactor', defaultCircleFactor, validFloat);
-addParameter(p, 'FCRefinement', defaultFCRefinement, @isboolean);
-addParameter(p, 'sufFCCond', defaultSufFCCond, @isboolean);
-addParameter(p, 'useMrstPebi', defaultUseMrstPebi, @isboolean);
+addParameter(p, 'FCRefinement', defaultFCRefinement, @islogical);
+addParameter(p, 'sufFCCond', defaultSufFCCond, @islogical);
+addParameter(p, 'useMrstPebi', defaultUseMrstPebi, @islogical);
+addParameter(p, 'FCFactor', defaultFCFactor, validFloat);
+addParameter(p, 'CCFactor', defaultCCFactor, validFloat);
 
 parse(p, resGridSize, shape, varargin{:});
 params = p.Results;
@@ -235,10 +239,25 @@ cellConstraints = params.cellConstraints;
 if iscell(cellConstraints)
     pyCellConstraints = constraintCellArrayToStruct(cellConstraints);
 end
+
 % Handle shape, to enable polygon shape
 shape = params.shape;
 if length(shape) > 2
     pyShape = shapeArrayToStruct(shape);
+end
+
+% Set domain function
+if length(shape) == 2
+	rectangle = [0,0; shape(1), shape(2)];
+	fd = @(p,varargin) drectangle(p, 0, shape(1), 0, shape(2));
+	corners = [0,0; 0,shape(2); shape(1),0; shape(1), shape(2)];
+	vararg  = [];
+    shape = [0, 0; shape(1), 0; shape(1), shape(2); 0, shape(2)];
+else
+	rectangle = [min(shape); max(shape)];
+	corners   = shape;
+	fd        = @dpoly;
+	vararg    = [shape; shape(1,:)];
 end
 
 % Call Python, to compute background grid
@@ -247,8 +266,8 @@ py.gmsh4mrst.background_grid_2D(...
     shape = pyShape, ...
     face_constraints = pyFaceConstraints, ...
     face_constraint_factor = params.faceConstraintFactor, ...
-    min_threshold_distance = params.minThresholdDistance, ...
-    max_threshold_distance = params.maxThresholdDistance, ...
+    min_FC_threshold_distance = params.minThresholdDistance, ...
+    max_FC_threshold_distance = params.maxThresholdDistance, ...
     face_intersection_factor = params.faceIntersectionFactor, ...
     min_intersection_distance = params.minIntersectionDistance, ...
     max_intersection_distance = params.maxIntersectionDistance, ...
@@ -257,37 +276,48 @@ py.gmsh4mrst.background_grid_2D(...
     cell_constraint_factor = params.cellConstraintFactor, ...
     cell_constraint_line_factor = params.cellConstraintLineFactor, ...
     cell_constraint_point_factor = params.cellConstraintPointFactor, ...
+    min_CC_threshold_distance = params.minThresholdDistance, ...
+    max_CC_threshold_distance = params.maxThresholdDistance, ...
     mesh_algorithm = params.meshAlgorithm, ...
     recombination_algorithm = params.recombinationAlgorithm, ...
     savename = "TEMP_Gmsh_MRST.m");
 
-if isfile('TEMP_Gmsh_MRST.m')
-    G = gmshToMRST('TEMP_Gmsh_MRST.m');
+if isfile("TEMP_Gmsh_MRST.m")
+    G = gmshToMRST("TEMP_Gmsh_MRST.m");
     delete TEMP_Gmsh_MRST.m
+else
+    error("No file generated. Something failed in Python!")
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%% START OF CODE ADAPTED FROM pebiGrid2D %%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Adopt some variables used below
-FCGridSize = params.faceConstraintFactor * params.resGridSize;
-CCGridSize = params.cellConstraintFactor * params.resGridSize;
+FCGridSize = params.FCFactor * params.resGridSize;
+CCGridSize = params.FCFactor * params.resGridSize;
+CCRef = params.CCRefinement;
+circleFactor = params.circleFactor;
+FCRef = params.FCRefinement;
+% Workaound on Rho functions, to get things working
+CCRhoFunc = @(x) ones(size(x,1),1);
+CCRho = @(x) CCGridSize*CCRhoFunc(x);
+FCRho = CCRhoFunc;
 
 % Format interpolateCC
 if ~isempty(params.cellConstraints)
     if (numel(params.interpolateCC) == 1)
         % Extend interpolateCC to be an array of length = len(cellConstraints)
-        params.interpolateCC = repmat(params.interpolateCC, numel(params.cellConstraints),1);
+        params.interpolateCC = repmat(params.interpolateCC, numel(cellConstraints),1);
     end
     % Assert that each cellConstraint has an interpolateCC-value
-    assert(numel(params.interpolateCC)==numel(params.cellConstraints));
+    assert(numel(params.interpolateCC)==numel(cellConstraints));
     
     if numel(params.protD) == 1
         % Extend protD to be an array of length = len(cellConstraints)
-        params.protD = repmat(params.protD,numel(params.cellConstraints),1);
+        params.protD = repmat(params.protD,numel(cellConstraints),1);
     end
     % Assert that each cellConstraint has a protD
-    assert(numel(params.protD) == numel(params.cellConstraints));
+    assert(numel(params.protD) == numel(cellConstraints));
 end
 
 % Format interpolateFC
@@ -330,8 +360,8 @@ bisectPnt = (fLen.^2 - (circleFactor*fLen).^2 ...
 faultOffset = sqrt((circleFactor*fLen).^2 - bisectPnt.^2);
 sePtn = (1.0+faultOffset/CCGridSize)*sePtn;
 
-[wellPts, wGs, protPts, pGs] = ...
-    lineSites2D(cellConstraints, CCGridSize, ...
+[wellPts, ~, protectionPts, ~] ...
+    = lineSites2D(cellConstraints, CCGridSize, ...
                          'sePtn',         sePtn,...
                          'cCut',          cCut, ...
                          'protLayer',     params.protLayer,...
@@ -364,22 +394,6 @@ else
   hresf = @(p) constFunc(p)/CCFactor;
 end
 
-
-% Create reservoir grid points
-% Set domain function
-if length(shape) == 2
-	rectangle = [0,0; shape(1), shape(2)];
-	fd = @(p,varargin) drectangle(p, 0, shape(1), 0, shape(2));
-	corners = [0,0; 0,shape(2); shape(1),0; shape(1), shape(2)];
-	vararg  = [];
-    shape = [0, 0; shape(1), 0; shape(1), shape(2); 0, shape(2)];
-else
-	rectangle = [min(shape); max(shape)];
-	corners   = shape;
-	fd        = @dpoly;
-	vararg    = [shape; shape(1,:)];
-end
-
 % Remove tip sites outside domain
 if size(F.t.pts, 1) > 0
     innside = inpolygon(F.t.pts(:, 1), F.t.pts(:, 2), shape(:, 1), shape(:, 2));
@@ -403,12 +417,16 @@ if params.sufFCCond
 else
 	Pts = removeConflictPoints(G.nodes.coords,F.f.pts, F.f.Gs);
 end
-Pts  = [fPts; wPts; Pts];
+Pts  = [F.f.pts; wellPts; protectionPts; Pts];
+% For some reason, we sometimes get imaginary points (although with the
+% imaginary element = 0). We only care about real points!
+% We also remove some possible duplicates
+Pts = unique(real(Pts), 'rows');
 
 
 % Create grid
 if params.useMrstPebi
-	t    = delaunay(Pts);
+	t    = pyOutput(Pts);
 	% Fix boundary
 	pmid = (Pts(t(:,1),:)+Pts(t(:,2),:)+Pts(t(:,3),:))/3;% Compute centroids
 	t    = t(fd(pmid,vararg)<-0.001*CCFactor,:);   % Keep interior triangles
@@ -416,7 +434,7 @@ if params.useMrstPebi
 	G = triangleGrid(Pts, t);
 	G = pebi(G);
 else
-    G = clippedPebi2D(Pts, polyBdr);
+    G = clippedPebi2D(Pts, shape);
 end
 
 % label face constraint faces.

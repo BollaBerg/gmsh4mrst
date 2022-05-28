@@ -1,3 +1,3 @@
 clear classes
-mod = py.importlib.import_module('gmsh2mrst');
+mod = py.importlib.import_module('gmsh4mrst');
 py.importlib.reload(mod);
