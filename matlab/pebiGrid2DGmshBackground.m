@@ -6,7 +6,8 @@ function [G, Pts, F] = pebiGrid2DGmshBackground(resGridSize, shape, varargin)
 % but with Gmsh as a drop-in replacement of Distmesh.
 % 
 % SYNOPSIS:
-%   G = pebiGrid2DGmsh2(resGridSize, varargin)
+%   G = pebiGrid2DGmshBackground(resGridSize)
+%   G = pebiGrid2DGmshBackground(..., 'Name1', Value1, ...)
 %
 % ARGUMENTS
 %   resGridSize     - Size of the reservoir grid cells, in units of meters.
@@ -18,74 +19,75 @@ function [G, Pts, F] = pebiGrid2DGmshBackground(resGridSize, shape, varargin)
 %                   coordinates must be ordered clockwise or counter
 %                   clockwise.
 %
-% OPTIONAL PARAMETERS
-%   faceConstraints - A struct of vectors. Each vector, size nf x 2, is the
-%                   coordinates of a surface-trace. The surface is
+% OPTIONAL PARAMETERS   (gmsh4mrst)
+%   faceConstraints - A cell array of float arrays. Each array, size nf x 2
+%                   is the coordinates of a surface-trace. The surface is
 %                   assumed to be linear between the coordinates. The
 %                   function will place sites such that the surface is
-%                   traced by faces of the grid. Defaults to empty
-%                   struct.
+%                   traced by faces of the grid. Defaults to empty cell
+%                   array.
 %
-%   faceConstraintFactor - Float. The size of the cells close to the face
-%                   constraints, as compared to supplied cell_dimensions.
-%                   Cells within min_threshold_distance will have size
-%                   face_constraint_factor * cell_dimensions. Equivalent
-%                   to FCFactor in MRST/UPR/pebiGrid2D. Defaults to 1/3.
+%   faceConstraintFactor - Float. The size of the background cells close to
+%                   the face constraints, as compared to supplied
+%                   resGridSize. Cells within minThresholdDistance of a
+%                   face constraint will have size faceConstraintFactor *
+%                   resGridSize. Only applies to the background grid.
+%                   Defaults to 1.
 %
 %   minThresholdDistance - Float. Distance from face constraints where cell
-%                   dimensions will start increasing. Defaults to 0.05.
+%                   dimensions will start scaling size. Defaults to 0.05.
 %
 %   maxThresholdDistance - Float. Distance from face constraints where cell
 %                   dimensions will be back to their default (max) value,
-%                   i.e. the supplied argument cell_dimensions. Defaults
+%                   i.e. the supplied argument resGridSize. Defaults
 %                   to 0.2.
 %
 %   faceIntersectionFactor - Float. The size of the cells close to
-%                   intersections between face constraints, as compared to supplied
-%                   cell_dimensions. Cells in min_intersection_distance
+%                   intersections between face constraints, as compared to
+%                   resGridSize. Cells within minIntersectionDistance
 %                   from an intersection will have size
-%                   face_intersection_factor * cell_dimensions.
-%                   If missing, no extra cell shaping will occur around
-%                   intersections. The factor is also used in "breaks" of
-%                   lines, i.e. if there is a sharp "turn" in a line
-%                   segment. Defaults to missing.
+%                   faceIntersectionFactor * resGridSize. If missing, no
+%                   extra cell shaping will occur around intersections.
+%                   Defaults to missing (aka python None).
 %
 %   minIntersectionDistance - Float. Distance from intersections where cell
-%                   dimensions will start increasing. If missing, will use
-%                   min_threshold_distance. Defaults to missing.
+%                   dimensions will start increasing. If missing, 
+%                   minThresholdDistance will be used. Defaults to missing.
 %
 %   maxIntersectionDistance - Float. Distance from intersections where
 %                   cell dimensions will be back to their default (max)
-%                   value, i.e. the supplied argument cell_dimensions. If
-%                   missing, will use min_threshold_distance. Defaults to
+%                   value, i.e. the supplied argument resGridSize. If
+%                   missing, minThresholdDistance will be used. Defaults to
 %                   missing.
 %
 %   fractureMeshSampling - Int. The number of points along the face
 %                   constraints should be sampled to calculate the
 %                   threshold distances. Defaults to 100.
 %
-%   cellConstraints - A struct of vectors. Each vector, size nf x 2, is a
-%                   line, which the method will attempt to place in the
-%                   center of the returned grid. The lines are assumed to
-%                   be linear between the coordinates. If a constraint is
-%                   only one coordinate, the line is treated as a point
-%                   constraint. Defaults to empty struct.
+%   cellConstraints - A cell array of float arrays. Each array, size nf x 2
+%                   is a line, which the method will attempt to place in
+%                   the center of cells in the returned grid. The lines are
+%                   assumed to be linear between the coordinates. If a
+%                   constraint is only one coordinate, the line is treated
+%                   as a point constraint. Defaults to empty cell array.
 %
 %   cellConstraintFactor - Float. The size used for cells around cell
-%                   constraints, as compared to supplied cell_dimensions.
-%                   Equivalent to CCFactor in MRST/UPR/pebiGrid2D.
-%                   Defaults to 1/4.
+%                   constraints, as compared to supplied resGridSize.
+%                   Cells within minThresholdDistance of a
+%                   cell constraint will have size cellConstraintFactor *
+%                   resGridSize. Only applies to the background grid.
+%                   Defaults to 1.
 %
 %   cellConstraintLineFactor - Float. The size used for cells around cell
 %                   constraint lines, as compared to the supplied
-%                   cell_dimensions. Overrides cell_constraint_factor for
-%                   lines. If missing, cell_constraint_factor will be
+%                   resGridSize. Overrides cellConstraintFactor for
+%                   lines. If missing, cellConstraintFactor will be
 %                   used for lines. Defaults to missing.
 %
 %   cellConstraintPointFactor - Float. The size used for cells around cell
 %                   constraint points, as compared to the supplied 
-%                   cell_dimensions. Overrides cell_constraint_factor for
-%                   points. If missing, cell_constraint_factor will be used
+%                   resGridSize. Overrides cellConstraintFactor for
+%                   points. If missing, cellConstraintFactor will be used
 %                   for points. Defaults to missing.
 %
 %   meshAlgoritm - String | Int. What meshing algorithm should be used.
@@ -99,16 +101,18 @@ function [G, Pts, F] = pebiGrid2DGmshBackground(resGridSize, shape, varargin)
 %                       "DelQuad" = 8
 %                   Defaults to "Delaunay".
 %
-%   recombinationAlgorithm - String | Int. What recombination algorithm
-%                   should be used, and whether recombination should be
-%                   done. Recombination makes Gmsh attempt to create a
-%                   quadrangle mesh, rather than a triangle mesh. Can be
-%                   either the Gmsh-given ID of the algorithm or the name
-%                   of the algorithm. Legal values:
+%   recombinationAlgorithm - String | Int | missing. What recombination
+%                   algorithm should be used, and whether recombination
+%                   should be done. Recombination makes Gmsh attempt to
+%                   create a quadrangle mesh, rather than a triangle mesh.
+%                   Only applied to the background grid.
+%                   Can be either the Gmsh-given ID of the algorithm or the
+%                   name of the algorithm. Legal values:
 %                       "Simple" = 0
 %                       "Blossom" = 1
 %                       "SimpleFull" = 2
 %                       "BlossomFull" = 3
+%                       missing
 %                   If missing, no recombination will be done. Defaults to
 %                   missing.
 %
@@ -116,12 +120,109 @@ function [G, Pts, F] = pebiGrid2DGmshBackground(resGridSize, shape, varargin)
 %                       constraints. It may therefore be beneficial to use
 %                       SimpleQuad, if there are constraints.
 %
-%                   NOTE 2: Recombination may lead to weird results for
-%                       constraints, as the recombination is done after
-%                       constraints have been applied. This is especially
-%                       true for SimpleFull and BlossomFull, who 
-%                       automatically perform a coarser mesh, followed by
-%                       recombination, smoothing and subdivision.
+% OPTIONAL PARAMETERS   (pebiGrid2D)
+% These are directly from pebiGrid2D, and do the same thing as there.
+%
+%   interpolateCC - logical. If false, each segment in the corresponding
+%                   constraint line will be represented by at least one
+%                   cell. If true, the routine will interpolate along the
+%                   curve, which means that sites will not
+%                   necessarily fall exactly on the prescribed curve. Can
+%                   be either one element, or an array of one element per
+%                   cell constraint. Defaults to false.
+%
+%   CCFactor - float. Relative grid size of the cell constraint grid cells
+%                   compared to supplied resGridSize. If CCFactor = 0.5,
+%                   then the constrained cells will be about half the size
+%                   of the background cells. Defaults to 1/4.
+%
+%   CCRefinement - logical. Whether refinement should be done around the
+%                   cell constraints. Defaults to false.
+%
+%   CCRho - Function. Gives the relative distance between cell constraint
+%                   sites. If CCRho = 0.5 in an area the distance between
+%                   constraint sites will be around half the default, i.e.
+%                   around 0.5 * CCFactor * resGridSize. Defaults to
+%                   @(x) ones(size(x,1),1)
+%
+%   protLayer - logical. Whether a protection layer is added on both sides
+%                   of the cell constraints. Defaults to true.
+%
+%   protD - cell array of functions. Gives the distance from the cell
+%                   constrained sites to the protection sites. The function
+%                   is evaluated along the well path such that protD(0) is
+%                   the start of the well while protD(1) is the end of the
+%                   well. The array should have either one function or one
+%                   function for each well path. Defaults to
+%                   {@(x) ones(size(x,1),1)*resGridSize/4}
+%
+%   interpolateFC - logical. If false, each segment in the corresponding
+%                   constraint line will be represented by at least one
+%                   cell. If true, the routine will interpolate along the
+%                   curve, which means that faces will not
+%                   necessarily fall exactly on the prescribed curve. Can
+%                   be either one element, or an array of one element per
+%                   face constraint. Defaults to false.
+%
+%   FCFactor - float. Relative grid size of the surface grid cells compared
+%                   to background cells. If FCFactor = 0.5, then the
+%                   surface cells will be about half the size of the
+%                   reservoir cells. Defaults to 1/2.
+%
+%   circleFactor - float. The ratio between the radius and distance between
+%                   the circles used to create the face constraints. A
+%                   small value will place the surface points close to the
+%                   surfaces, while a large value will place them far from
+%                   the surfaces. Valid values are between 0.5 and 1.
+%                   Defaults to 0.6.
+%
+%   FCRho - Function. Gives the relative distance between
+%                   surface sites along a face constraint. If FCRho = 0.5
+%                   in an area, the face constraint sites will be about 50%
+%                   closer than in other areas. Defaults to
+%                   @(x) ones(size(x,1),1).
+%
+%   FCRefinement - logical. Whether refinement should be done around the
+%                   cell constraints. Defaults to false.
+%
+%   sufFCCond - logical. Whether we should enforce the sufficient and
+%                   necessary face constraint condition. If false, we
+%                   instead enforce a less strict condition and remove any
+%                   background sites that are closer to the constraint
+%                   sites than the constraint grid size. The conformity is
+%                   then not guaranteed. May be set to false to handle
+%                   problems with bad cells at the end of faults due to the
+%                   sufficient condition removing some reservoir points.
+%                   Defaults to true.
+%
+% RETURNS
+%   G       - Valid grid definition.
+%               The fields
+%                   - G.cells.tag is TRUE for all cell constraints.
+%                   - G.faces.tag is TRUE for all face constraints.
+%   Pts     - Array [G.cells.num x 3] of the Pebi sites.
+%   F       - Struct with elements as returned from surfaceSites2D
+%
+% EXAMPLE:
+%   resGridSize = 0.1;
+%   domain = [0 0; 0.5 0.2; 1 0; 1 1; 0 1;];
+%   faceConstraints = {
+%       [0.25 0.25; 0.4 0.5; 0.7 0.7;], ...
+%       [0.8 0.1; 0.9 0.2], ...
+%       [0.2 0.9; 0.9 0.1], ...
+%   };
+%   cellConstraints = {
+%       [0.1 0.1], ...
+%       [0.5 0.8; 0.6 0.7; 0.7 0.8; 0.9 0.6];
+%   };
+%   G = pebiGrid2DGmshBackground( ...
+%       resGridSize, ...
+%       domain, ...
+%       'faceConstraints', faceConstraints, ...
+%       'cellConstraints', cellConstraints, ...
+%       'protLayer', true ...
+%   );
+%   plotGrid(G, 'faceColor', 'none');
 %
 
 defaultFaceConstraints = {};
@@ -141,17 +242,17 @@ defaultRecombinationAlgorithm = string(missing);
 
 % pebiGrid2D arguments
 defaultInterpolateCC = false;
-defaultProtD = {@(x) ones(size(x,1),1)*resGridSize/4};
-defaultProtLayer = false;
-defaultInterpolateFC = false;
+defaultCCFactor = 1/4;
 defaultCCRefinement = false;
+defaultCCRho = @(x) ones(size(x,1),1);
+defaultProtLayer = false;
+defaultProtD = {@(x) ones(size(x,1),1)*resGridSize/4};
+defaultInterpolateFC = false;
+defaultFCFactor = 1/2;
 defaultCircleFactor = 0.6;
+defaultFCRho = @(x) ones(size(x,1),1);
 defaultFCRefinement = false;
 defaultSufFCCond = true;
-defaultUseMrstPebi = false;
-defaultFCFactor = 1/2;
-defaultCCFactor = 1/4;
-
 
     function valid = validMeshAlgorithm(x)
         legalStrings = {'MeshAdapt', 'Automatic', 'Delaunay', 'Frontal', 'BAMG', 'DelQuad'};
@@ -216,16 +317,17 @@ addParameter(p, 'recombinationAlgorithm', defaultRecombinationAlgorithm, @validR
 
 % pebiGrid2D parameters
 addParameter(p, 'interpolateCC', defaultInterpolateCC, @islogical);
-addParameter(p, 'protD', defaultProtD);
-addParameter(p, 'protLayer', defaultProtLayer, @islogical);
-addParameter(p, 'interpolateFC', defaultInterpolateFC, @islogical);
+addParameter(p, 'CCFactor', defaultCCFactor, validFloat);
 addParameter(p, 'CCRefinement', defaultCCRefinement, @islogical);
+addParameter(p, 'CCRho', defaultCCRho);
+addParameter(p, 'protLayer', defaultProtLayer, @islogical);
+addParameter(p, 'protD', defaultProtD);
+addParameter(p, 'interpolateFC', defaultInterpolateFC, @islogical);
+addParameter(p, 'FCFactor', defaultFCFactor, validFloat);
 addParameter(p, 'circleFactor', defaultCircleFactor, validFloat);
+addParameter(p, 'FCRho', defaultFCRho);
 addParameter(p, 'FCRefinement', defaultFCRefinement, @islogical);
 addParameter(p, 'sufFCCond', defaultSufFCCond, @islogical);
-addParameter(p, 'useMrstPebi', defaultUseMrstPebi, @islogical);
-addParameter(p, 'FCFactor', defaultFCFactor, validFloat);
-addParameter(p, 'CCFactor', defaultCCFactor, validFloat);
 
 parse(p, resGridSize, shape, varargin{:});
 params = p.Results;
@@ -299,9 +401,8 @@ CCRef = params.CCRefinement;
 circleFactor = params.circleFactor;
 FCRef = params.FCRefinement;
 % Workaound on Rho functions, to get things working
-CCRhoFunc = @(x) ones(size(x,1),1);
-CCRho = @(x) CCGridSize*CCRhoFunc(x);
-FCRho = CCRhoFunc;
+CCRho = @(x) CCGridSize * params.CCRho(x);
+FCRho = params.FCRho;
 
 % Format interpolateCC
 if ~isempty(params.cellConstraints)
@@ -400,17 +501,6 @@ if size(F.t.pts, 1) > 0
     F.t.pts = F.t.pts(innside, :);
 end 
 
-if FCRef && CCRef
-    ds   = min(CCGridSize,FCGridSize);
-    hres = @(x,varargin) min(hresf(p), hresw(p));
-elseif FCRef
-    ds   = FCGridSize;
-    hres = @(p,varargin) hresf(p);
-else 
-    ds   = CCGridSize;
-    hres = @(p, varargin) hresw(p);
-end
-
 % Remove conflict points
 if params.sufFCCond
 	Pts = surfaceSufCond2D(G.nodes.coords,F);
@@ -425,17 +515,7 @@ Pts = unique(real(Pts), 'rows');
 
 
 % Create grid
-if params.useMrstPebi
-	t    = pyOutput(Pts);
-	% Fix boundary
-	pmid = (Pts(t(:,1),:)+Pts(t(:,2),:)+Pts(t(:,3),:))/3;% Compute centroids
-	t    = t(fd(pmid,vararg)<-0.001*CCFactor,:);   % Keep interior triangles
-
-	G = triangleGrid(Pts, t);
-	G = pebi(G);
-else
-    G = clippedPebi2D(Pts, shape);
-end
+G = clippedPebi2D(Pts, shape);
 
 % label face constraint faces.
 if ~isempty(F.f.pts)
