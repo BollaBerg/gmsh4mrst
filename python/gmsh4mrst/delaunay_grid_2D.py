@@ -338,7 +338,7 @@ def delaunay_grid_2D(
     if cell_constraint_point_factor is None:
         cell_constraint_point_factor = cell_constraint_factor
     if cell_constraint_refinement_factor is None:
-        cell_constraint_refinement_factor = cell_dimensions
+        cell_constraint_refinement_factor = 1
 
     # Format Gmsh algorithms
     mesh_algorithm = format_meshing_algorithm(mesh_algorithm)
@@ -517,9 +517,6 @@ if __name__ == "__main__":
         shape=[
             (0, 0), (0.5, 0.2), (1, 0), (1, 1), (0, 1)
         ],
-        face_constraint_factor = 1/3,
-        face_intersection_factor = 1/9,
         mesh_algorithm="DelQuad",
-        # recombination_algorithm="simplefull",
         savename=None,
         run_frontend=True)
