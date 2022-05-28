@@ -26,7 +26,6 @@ from gmsh4mrst._arguments import (
 from gmsh4mrst._geometry import split_at_intersections
 from gmsh4mrst._gmsh import (
     create_threshold_field, create_circumference, create_fracture_point,
-    create_cell_constraint_point, create_cell_constraint_line
 )
 
 def background_grid_2D(
@@ -508,6 +507,5 @@ if __name__ == "__main__":
             (0, 0), (0.5, 0.2), (1, 0), (1, 1), (0, 1)
         ],
         mesh_algorithm="DelQuad",
-        # recombination_algorithm="simplefull",
         savename=None,
         run_frontend=True)
