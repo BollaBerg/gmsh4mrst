@@ -45,6 +45,13 @@ function G = pebiGrid2DGmshBase(resGridSize, size, varargin)
 %                   across the cells. If missing, faceConstraintFactor will
 %                   be used. Defaults to missing.
 %
+%   faceConstraintPerpendicularCells - Int. The number of transfinite cells
+%                   to use across the face constraints. Should be odd if
+%                   the Delaunay grid is used directly, and even if the
+%                   grid is converted to a PEBI grid before use. More cells
+%                   may make a "buffer zone" around the constraints.
+%                   Defaults to 3.
+%
 %   faceConstraintPointFactor - Float. The size used for cells around face
 %                   constraint points, as compared to the supplied 
 %                   resGridSize. Overrides faceConstraintFactor for
@@ -95,6 +102,13 @@ function G = pebiGrid2DGmshBase(resGridSize, size, varargin)
 %                   across the cells. If missing, cellConstraintFactor will
 %                   be used. Defaults to missing.
 %
+%   cellConstraintPerpendicularCells - Int. The number of transfinite cells
+%                   to use across the cell constraints. Should be even if
+%                   the Delaunay grid is used directly, and odd if the grid
+%                   is converted to a PEBI grid before use. More cells may
+%                   make a "buffer zone" around the constraints. Defaults
+%                   to 3.
+%
 %   cellConstraintPointFactor - Float. The size used for cells around cell
 %                   constraint points, as compared to the supplied 
 %                   resGridSize. Overrides cellConstraintFactor for
@@ -118,6 +132,10 @@ function G = pebiGrid2DGmshBase(resGridSize, size, varargin)
 %   CCMeshSampling - Int. The number of points along the cell constraints
 %                   should be sampled to calculate the threshold distances.
 %                   Defaults to 100.
+%
+%   convertToPEBI - Boolean. Whether the mesh should be converted to a PEBI
+%                   grid before being returned. If False, the resulting
+%                   grid is a Delaunay triangulation. Defaults to true.
 %
 %   meshAlgoritm - String | Int. What meshing algorithm should be used.
 %                   Can either be the Gmsh-given ID of the algorithm or the
@@ -161,6 +179,7 @@ defaultFaceConstraints = {};
 defaultFaceConstraintFactor = 1/3;
 defaultFaceConstraintParallelFactor = string(missing);   % => Python None
 defaultFaceConstraintPerpendicularFactor = string(missing);
+defaultFaceConstraintPerpendicularCells = 2;
 defaultFaceConstraintPointFactor = string(missing);
 defaultFaceConstraintRefinementFactor = string(missing);
 defaultMinFCThresholdDistance = 0.05;
@@ -170,11 +189,13 @@ defaultCellConstraints = {};
 defaultCellConstraintFactor = 1/4;
 defaultCellConstraintParallelFactor = string(missing);
 defaultCellConstraintPerpendicularFactor = string(missing);
+defaultCellConstraintPerpendicularCells = 3;
 defaultCellConstraintPointFactor = string(missing);
 defaultCellConstraintRefinementFactor = string(missing);
 defaultMinCCThresholdDistance = 0.05;
 defaultMaxCCThresholdDistance = 0.2;
 defaultCCMeshSampling = 100;
+defaultConvertToPEBI = true;
 defaultMeshAlgorithm = "Delaunay";
 defaultRecombinationAlgorithm = string(missing);
 
@@ -228,6 +249,7 @@ addParameter(p, 'faceConstraints', defaultFaceConstraints);
 addParameter(p, 'faceConstraintFactor', defaultFaceConstraintFactor, validFloat);
 addParameter(p, 'faceConstraintParallelFactor', defaultFaceConstraintParallelFactor, @validOptionalFloat);
 addParameter(p, 'faceConstraintPerpendicularFactor', defaultFaceConstraintPerpendicularFactor, @validOptionalFloat);
+addParameter(p, 'faceConstraintPerpendicularCells', defaultFaceConstraintPerpendicularCells, validInt);
 addParameter(p, 'faceConstraintPointFactor', defaultFaceConstraintPointFactor, @validOptionalFloat);
 addParameter(p, 'faceConstraintRefinementFactor', defaultFaceConstraintRefinementFactor, @validOptionalFloat);
 addParameter(p, 'minFCThresholdDistance', defaultMinFCThresholdDistance, validFloat);
@@ -237,11 +259,13 @@ addParameter(p, 'cellConstraints', defaultCellConstraints);
 addParameter(p, 'cellConstraintFactor', defaultCellConstraintFactor, validFloat);
 addParameter(p, 'cellConstraintParallelFactor', defaultCellConstraintParallelFactor, @validOptionalFloat);
 addParameter(p, 'cellConstraintPerpendicularFactor', defaultCellConstraintPerpendicularFactor, @validOptionalFloat);
+addParameter(p, 'cellConstraintPerpendicularCells', defaultCellConstraintPerpendicularCells, validInt);
 addParameter(p, 'cellConstraintPointFactor', defaultCellConstraintPointFactor, @validOptionalFloat);
 addParameter(p, 'cellConstraintRefinementFactor', defaultCellConstraintRefinementFactor, @validOptionalFloat);
 addParameter(p, 'minCCThresholdDistance', defaultMinCCThresholdDistance, validFloat);
 addParameter(p, 'maxCCThresholdDistance', defaultMaxCCThresholdDistance, validFloat);
 addParameter(p, 'CCMeshSampling', defaultCCMeshSampling, validInt);
+addParameter(p, 'convertToPEBI', defaultConvertToPEBI, @islogical);
 addParameter(p, 'meshAlgorithm', defaultMeshAlgorithm, @validMeshAlgorithm);
 addParameter(p, 'recombinationAlgorithm', defaultRecombinationAlgorithm, @validRecombinationAlgorithm);
 
@@ -269,6 +293,7 @@ py.gmsh4mrst.pebi_base_2D( ...
     face_constraint_factor = p.Results.faceConstraintFactor, ...
     face_constraint_parallel_factor = p.Results.faceConstraintParallelFactor, ...
     face_constraint_perpendicular_factor = p.Results.faceConstraintPerpendicularFactor, ...
+    face_constraint_perpendicular_cells = p.Results.faceConstraintPerpendicularCells, ...
     face_constraint_point_factor = p.Results.faceConstraintPointFactor, ...
     face_constraint_refinement_factor = p.Results.faceConstraintRefinementFactor, ...
     min_FC_threshold_distance = p.Results.minFCThresholdDistance, ...
@@ -278,6 +303,7 @@ py.gmsh4mrst.pebi_base_2D( ...
     cell_constraint_factor = p.Results.cellConstraintFactor, ...
     cell_constraint_parallel_factor = p.Results.cellConstraintParallelFactor, ...
     cell_constraint_perpendicular_factor = p.Results.cellConstraintPerpendicularFactor, ...
+    cell_constraint_perpendicular_cells = p.Results.cellConstraintPerpendicularCells, ...
     cell_constraint_point_factor = p.Results.cellConstraintPointFactor, ...
     cell_constraint_refinement_factor = p.Results.cellConstraintRefinementFactor, ...
     min_CC_threshold_distance = p.Results.minCCThresholdDistance, ...
@@ -286,10 +312,18 @@ py.gmsh4mrst.pebi_base_2D( ...
     mesh_algorithm = p.Results.meshAlgorithm, ...
     recombination_algorithm = p.Results.recombinationAlgorithm, ...
     savename = "TEMP_Gmsh_MRST.m");
-G = 0;
+
+% Format shape again, this time for clippedPebi2D
+bnd = p.Results.shape;
+if length(bnd) == 2
+    bnd = [0, 0; bnd(1), 0; bnd(1), bnd(2); 0, bnd(2)];
+end
 
 if isfile('TEMP_Gmsh_MRST.m')
     G = gmshToMRST('TEMP_Gmsh_MRST.m');
+    if p.Results.convertToPEBI
+        G = clippedPebi2D(G.nodes.coords, bnd);
+    end
     delete TEMP_Gmsh_MRST.m
 end
 
