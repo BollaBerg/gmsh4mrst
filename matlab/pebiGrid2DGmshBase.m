@@ -179,7 +179,7 @@ defaultFaceConstraints = {};
 defaultFaceConstraintFactor = 1/3;
 defaultFaceConstraintParallelFactor = string(missing);   % => Python None
 defaultFaceConstraintPerpendicularFactor = string(missing);
-defaultFaceConstraintPerpendicularCells = 2;
+defaultFaceConstraintPerpendicularCells = int8(2);
 defaultFaceConstraintPointFactor = string(missing);
 defaultFaceConstraintRefinementFactor = string(missing);
 defaultMinFCThresholdDistance = 0.05;
@@ -189,7 +189,7 @@ defaultCellConstraints = {};
 defaultCellConstraintFactor = 1/4;
 defaultCellConstraintParallelFactor = string(missing);
 defaultCellConstraintPerpendicularFactor = string(missing);
-defaultCellConstraintPerpendicularCells = 3;
+defaultCellConstraintPerpendicularCells = int8(3);
 defaultCellConstraintPointFactor = string(missing);
 defaultCellConstraintRefinementFactor = string(missing);
 defaultMinCCThresholdDistance = 0.05;
