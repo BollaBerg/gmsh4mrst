@@ -338,14 +338,9 @@ if iscell(cellConstraints)
 end
 
 % Handle shape, to enable polygon shape
-shape = params.shape;
-if length(shape) > 2
+pyShape = params.shape;
+if length(pyShape) > 2
     pyShape = shapeArrayToStruct(shape);
-end
-
-% Set domain function
-if length(shape) == 2
-    shape = [0, 0; shape(1), 0; shape(1), shape(2); 0, shape(2)];
 end
 
 % Call Python, to compute background grid
@@ -385,9 +380,14 @@ FCGridSize = params.FCFactor * params.resGridSize;
 CCGridSize = params.FCFactor * params.resGridSize;
 CCRef = params.CCRefinement;
 circleFactor = params.circleFactor;
-% Workaound on Rho functions, to get things working
 CCRho = @(x) CCGridSize * params.CCRho(x);
 FCRho = params.FCRho;
+
+% Set domain function
+shape = params.shape;
+if length(shape) == 2
+    shape = [0, 0; shape(1), 0; shape(1), shape(2); 0, shape(2)];
+end
 
 % Format interpolateCC
 if ~isempty(params.cellConstraints)
