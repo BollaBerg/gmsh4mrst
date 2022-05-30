@@ -46,7 +46,7 @@ def delaunay_grid_2D(
         face_intersection_factor: float = None,
         min_intersection_distance: float = None,
         max_intersection_distance: float = None,
-        fracture_mesh_sampling: int = 100,
+        FC_mesh_sampling: int = 100,
         cell_constraints: Union[
                     'list[list[Iterable]]',
                     'dict[str, float]',
@@ -193,9 +193,9 @@ def delaunay_grid_2D(
             i.e. the supplied argument cell_dimensions. If None, will use
             min_threshold_distance. Defaults to None.
 
-        fracture_mesh_sampling (int, optional): The number of points along the
-            face constraints should be sampled to calculate the threshold
-            distances. Defaults to 100.
+        FC_mesh_sampling (int, optional): The number of points along the face
+            constraints should be sampled to calculate the threshold distances.
+            Defaults to 100.
 
         cell_constraints (list[Iterable] | dict[str, float] | dict[str, Iterable]
                 | dict[str, dict[str, float]] | dict[str, dict[str, Iterable]],
@@ -432,7 +432,7 @@ def delaunay_grid_2D(
     fracture_threshold = create_threshold_field(
         point_list=fracture_points,
         curve_list=fractures,
-        sampling=fracture_mesh_sampling,
+        sampling=FC_mesh_sampling,
         min_size=face_constraint_factor * cell_dimensions,
         max_size=cell_dimensions,
         min_distance=min_FC_threshold_distance,
