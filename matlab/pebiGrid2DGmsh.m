@@ -34,6 +34,13 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %                   resGridSize. Only applies to the background grid.
 %                   Defaults to 1.
 %
+%   faceConstraintRefinementFactor - Float. The cell size factor that
+%                   should be used for cells around the face constraint
+%                   lines. If faceConstraintRefinementFactor = 0.5, then
+%                   the surface cells will be about half the size of the
+%                   reservoir cells. Same as FCFactor in pebiGrid2D. 
+%                   Defaults to 1/2.
+%
 %   minFCThresholdDistance - Float. Distance from face constraints where
 %                   cell dimensions will start scaling size. Defaults to
 %                   0.05.
@@ -61,9 +68,9 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %                   missing, minThresholdDistance will be used. Defaults to
 %                   missing.
 %
-%   fractureMeshSampling - Int. The number of points along the face
-%                   constraints should be sampled to calculate the
-%                   threshold distances. Defaults to 100.
+%   FCMeshSampling - Int. The number of points along the face constraints
+%                   should be sampled to calculate the threshold distances.
+%                   Defaults to 100.
 %
 %   cellConstraints - A cell array of float arrays. Each array, size nf x 2
 %                   is a line, which the method will attempt to place in
@@ -91,6 +98,13 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %                   points. If missing, cellConstraintFactor will be used
 %                   for points. Defaults to missing.
 %
+%   cellConstraintRefinementFactor - Float. The cell size factor that
+%                   should be used for cells around the cell constraint
+%                   lines. If cellConstraintRefinementFactor = 0.5, then
+%                   the constrained cells will be about half the size of
+%                   the background cells. Same as CCFactor in pebiGrid2D.
+%                   Defaults to 1/4.
+%
 %   minCCThresholdDistance - Float. Distance from cell constraints where
 %                   cell dimensions will start scaling size. Defaults to
 %                   0.05.
@@ -99,6 +113,10 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %                   cell dimensions will be back to their default (max)
 %                   value, i.e. the supplied argument resGridSize. Defaults
 %                   to 0.2.
+%
+%   CCMeshSampling - Int. The number of points along the cell constraints
+%                   should be sampled to calculate the threshold distances.
+%                   Defaults to 100.
 %
 %   meshAlgoritm - String | Int. What meshing algorithm should be used.
 %                   Can either be the Gmsh-given ID of the algorithm or the
@@ -141,11 +159,6 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %                   be either one element, or an array of one element per
 %                   cell constraint. Defaults to false.
 %
-%   CCFactor - float. Relative grid size of the cell constraint grid cells
-%                   compared to supplied resGridSize. If CCFactor = 0.5,
-%                   then the constrained cells will be about half the size
-%                   of the background cells. Defaults to 1/4.
-%
 %   CCRefinement - logical. Whether refinement should be done around the
 %                   cell constraints. Defaults to false.
 %
@@ -156,8 +169,8 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %   CCRho - Function. Gives the relative distance between cell constraint
 %                   sites. If CCRho = 0.5 in an area the distance between
 %                   constraint sites will be around half the default, i.e.
-%                   around 0.5 * CCFactor * resGridSize. Defaults to
-%                   @(x) ones(size(x,1),1)
+%                   around 0.5 * cellConstraintRefinementFactor * resGridSize.
+%                   Defaults to @(x) ones(size(x,1),1)
 %
 %   protLayer - logical. Whether a protection layer is added on both sides
 %                   of the cell constraints. Defaults to true.
@@ -177,11 +190,6 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %                   necessarily fall exactly on the prescribed curve. Can
 %                   be either one element, or an array of one element per
 %                   face constraint. Defaults to false.
-%
-%   FCFactor - float. Relative grid size of the surface grid cells compared
-%                   to background cells. If FCFactor = 0.5, then the
-%                   surface cells will be about half the size of the
-%                   reservoir cells. Defaults to 1/2.
 %
 %   circleFactor - float. The ratio between the radius and distance between
 %                   the circles used to create the face constraints. A
@@ -238,29 +246,30 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 
 defaultFaceConstraints = {};
 defaultFaceConstraintFactor = 1;
+defaultFaceConstraintRefinementFactor = 1/2;
 defaultMinThresholdDistance = 0.05;
 defaultMaxThresholdDistance = 0.2;
 defaultFaceIntersectionFactor = string(missing);   % => Python None
 defaultMinIntersectionDistance = string(missing);
 defaultMaxIntersectionDistance = string(missing);
-defaultFractureMeshSampling = 100;
+defaultFCMeshSampling = 100;
 defaultCellConstraints = {};
 defaultCellConstraintFactor = 1;
 defaultCellConstraintLineFactor = string(missing);
 defaultCellConstraintPointFactor = string(missing);
+defaultCellConstraintRefinementFactor = 1/4;
+defaultCCMeshSampling = 100;
 defaultMeshAlgorithm = "Delaunay";
 defaultRecombinationAlgorithm = string(missing);
 
 % pebiGrid2D arguments
 defaultInterpolateCC = false;
-defaultCCFactor = 1/4;
 defaultCCRefinement = false;
 defaultCCEps = -1;
 defaultCCRho = @(x) ones(size(x,1),1);
 defaultProtLayer = false;
 defaultProtD = {@(x) ones(size(x,1),1)*resGridSize/4};
 defaultInterpolateFC = false;
-defaultFCFactor = 1/2;
 defaultCircleFactor = 0.6;
 defaultFCRho = @(x) ones(size(x,1),1);
 defaultSufFCCond = true;
@@ -313,31 +322,32 @@ addRequired(p, 'resGridSize', validFloat);
 addRequired(p, 'shape', validShape);
 addParameter(p, 'faceConstraints', defaultFaceConstraints);
 addParameter(p, 'faceConstraintFactor', defaultFaceConstraintFactor, validFloat);
+addParameter(p, 'faceConstraintRefinementFactor', defaultFaceConstraintRefinementFactor, validFloat);
 addParameter(p, 'minFCThresholdDistance', defaultMinThresholdDistance, validFloat);
 addParameter(p, 'maxFCThresholdDistance', defaultMaxThresholdDistance, validFloat);
 addParameter(p, 'faceIntersectionFactor', defaultFaceIntersectionFactor, @validOptionalFloat);
 addParameter(p, 'minIntersectionDistance', defaultMinIntersectionDistance, @validOptionalFloat);
 addParameter(p, 'maxIntersectionDistance', defaultMaxIntersectionDistance, @validOptionalFloat);
-addParameter(p, 'fractureMeshSampling', defaultFractureMeshSampling, validInt);
+addParameter(p, 'FCMeshSampling', defaultFCMeshSampling, validInt);
 addParameter(p, 'cellConstraints', defaultCellConstraints);
 addParameter(p, 'cellConstraintFactor', defaultCellConstraintFactor, validFloat);
 addParameter(p, 'cellConstraintLineFactor', defaultCellConstraintLineFactor, @validOptionalFloat);
 addParameter(p, 'cellConstraintPointFactor', defaultCellConstraintPointFactor, @validOptionalFloat);
+addParameter(p, 'cellConstraintRefinementFactor', defaultCellConstraintRefinementFactor, validFloat);
 addParameter(p, 'minCCThresholdDistance', defaultMinThresholdDistance, validFloat);
 addParameter(p, 'maxCCThresholdDistance', defaultMaxThresholdDistance, validFloat);
+addParameter(p, 'CCMeshSampling', defaultCCMeshSampling, validInt);
 addParameter(p, 'meshAlgorithm', defaultMeshAlgorithm, @validMeshAlgorithm);
 addParameter(p, 'recombinationAlgorithm', defaultRecombinationAlgorithm, @validRecombinationAlgorithm);
 
 % pebiGrid2D parameters
 addParameter(p, 'interpolateCC', defaultInterpolateCC, @islogical);
-addParameter(p, 'CCFactor', defaultCCFactor, validFloat);
 addParameter(p, 'CCRefinement', defaultCCRefinement, @islogical);
 addParameter(p, 'CCEps', defaultCCEps, @isfloat);
 addParameter(p, 'CCRho', defaultCCRho);
 addParameter(p, 'protLayer', defaultProtLayer, @islogical);
 addParameter(p, 'protD', defaultProtD);
 addParameter(p, 'interpolateFC', defaultInterpolateFC, @islogical);
-addParameter(p, 'FCFactor', defaultFCFactor, validFloat);
 addParameter(p, 'circleFactor', defaultCircleFactor, validFloat);
 addParameter(p, 'FCRho', defaultFCRho);
 addParameter(p, 'sufFCCond', defaultSufFCCond, @islogical);
@@ -379,6 +389,7 @@ py.gmsh4mrst.background_grid_2D(...
     cell_constraint_point_factor = params.cellConstraintPointFactor, ...
     min_CC_threshold_distance = params.minCCThresholdDistance, ...
     max_CC_threshold_distance = params.maxCCThresholdDistance, ...
+    CC_mesh_sampling = params.CCMeshSampling, ...
     mesh_algorithm = params.meshAlgorithm, ...
     recombination_algorithm = params.recombinationAlgorithm, ...
     savename = "TEMP_Gmsh_MRST.m");
@@ -394,8 +405,8 @@ end
 %%%%%%%%%%% START OF CODE ADAPTED FROM pebiGrid2D %%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Adopt some variables used below
-FCGridSize = params.FCFactor * params.resGridSize;
-CCGridSize = params.FCFactor * params.resGridSize;
+FCGridSize = params.faceConstraintRefinementFactor * params.resGridSize;
+CCGridSize = params.faceConstraintRefinementFactor * params.resGridSize;
 CCRef = params.CCRefinement;
 circleFactor = params.circleFactor;
 CCRho = @(x) CCGridSize * params.CCRho(x);
@@ -476,7 +487,7 @@ sePtn = (1.0+faultOffset/CCGridSize)*sePtn;
 
 % Create distance functions
 if CCRef && ~isempty(wellPts)
-    hresw  = @(x) min((ones(size(x,1),1)/params.CCFactor), ...
+    hresw  = @(x) min((ones(size(x,1),1)/params.cellConstraintRefinementFactor), ...
         1.2*exp(minPdist2(x,wellPts)/params.CCEps));
     hfault = @(x) CCGridSize*params.faceConstraintFactor*hresw(x).*FCRho(x);
 else
