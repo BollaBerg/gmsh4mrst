@@ -48,7 +48,7 @@ def pebi_base_2D(
         face_constraint_refinement_factor: float = None,
         min_FC_threshold_distance: float = 0.05,
         max_FC_threshold_distance: float = 0.2,
-        face_mesh_sampling: int = 100,
+        FC_mesh_sampling: int = 100,
         cell_constraints: Union[
                     'list[list[Iterable]]',
                     'dict[str, float]',
@@ -216,9 +216,9 @@ def pebi_base_2D(
             (max) value, i.e. the supplied argument cell_dimensions. Defaults
             to 0.2.
 
-        fracture_mesh_sampling (int, optional): The number of points along the
-            face constraints should be sampled to calculate the threshold
-            distances. Defaults to 100.
+        FC_mesh_sampling (int, optional): The number of points along the face
+            constraints should be sampled to calculate the threshold distances.
+            Defaults to 100.
 
         cell_constraints (list[Iterable] | dict[str, float] | dict[str, Iterable]
                 | dict[str, dict[str, float]] | dict[str, dict[str, Iterable]],
@@ -463,7 +463,7 @@ def pebi_base_2D(
     face_threshold = create_threshold_field(
         point_list=None,
         curve_list=face_lines,
-        sampling=face_mesh_sampling,
+        sampling=FC_mesh_sampling,
         min_size=face_constraint_refinement_factor * cell_dimensions,
         max_size=cell_dimensions,
         min_distance=min_FC_threshold_distance,
