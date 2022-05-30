@@ -34,12 +34,13 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %                   resGridSize. Only applies to the background grid.
 %                   Defaults to 1.
 %
-%   minThresholdDistance - Float. Distance from face constraints where cell
-%                   dimensions will start scaling size. Defaults to 0.05.
+%   minFCThresholdDistance - Float. Distance from face constraints where
+%                   cell dimensions will start scaling size. Defaults to
+%                   0.05.
 %
-%   maxThresholdDistance - Float. Distance from face constraints where cell
-%                   dimensions will be back to their default (max) value,
-%                   i.e. the supplied argument resGridSize. Defaults
+%   maxFCThresholdDistance - Float. Distance from face constraints where
+%                   cell dimensions will be back to their default (max)
+%                   value, i.e. the supplied argument resGridSize. Defaults
 %                   to 0.2.
 %
 %   faceIntersectionFactor - Float. The size of the cells close to
@@ -90,6 +91,15 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %                   points. If missing, cellConstraintFactor will be used
 %                   for points. Defaults to missing.
 %
+%   minCCThresholdDistance - Float. Distance from cell constraints where
+%                   cell dimensions will start scaling size. Defaults to
+%                   0.05.
+%
+%   maxCCThresholdDistance - Float. Distance from cell constraints where
+%                   cell dimensions will be back to their default (max)
+%                   value, i.e. the supplied argument resGridSize. Defaults
+%                   to 0.2.
+%
 %   meshAlgoritm - String | Int. What meshing algorithm should be used.
 %                   Can either be the Gmsh-given ID of the algorithm or the
 %                   name of the algorithm. Legal values:
@@ -138,6 +148,10 @@ function [G, Pts, F] = pebiGrid2DGmsh(resGridSize, shape, varargin)
 %
 %   CCRefinement - logical. Whether refinement should be done around the
 %                   cell constraints. Defaults to false.
+%
+%   CCEps - float. The refinement transition around cell constraints. The
+%                   density function for the reservoir grid is set by
+%                   rho~exp(-distance to well / CCEps).
 %
 %   CCRho - Function. Gives the relative distance between cell constraint
 %                   sites. If CCRho = 0.5 in an area the distance between
@@ -241,6 +255,7 @@ defaultRecombinationAlgorithm = string(missing);
 defaultInterpolateCC = false;
 defaultCCFactor = 1/4;
 defaultCCRefinement = false;
+defaultCCEps = -1;
 defaultCCRho = @(x) ones(size(x,1),1);
 defaultProtLayer = false;
 defaultProtD = {@(x) ones(size(x,1),1)*resGridSize/4};
@@ -298,8 +313,8 @@ addRequired(p, 'resGridSize', validFloat);
 addRequired(p, 'shape', validShape);
 addParameter(p, 'faceConstraints', defaultFaceConstraints);
 addParameter(p, 'faceConstraintFactor', defaultFaceConstraintFactor, validFloat);
-addParameter(p, 'minThresholdDistance', defaultMinThresholdDistance, validFloat);
-addParameter(p, 'maxThresholdDistance', defaultMaxThresholdDistance, validFloat);
+addParameter(p, 'minFCThresholdDistance', defaultMinThresholdDistance, validFloat);
+addParameter(p, 'maxFCThresholdDistance', defaultMaxThresholdDistance, validFloat);
 addParameter(p, 'faceIntersectionFactor', defaultFaceIntersectionFactor, @validOptionalFloat);
 addParameter(p, 'minIntersectionDistance', defaultMinIntersectionDistance, @validOptionalFloat);
 addParameter(p, 'maxIntersectionDistance', defaultMaxIntersectionDistance, @validOptionalFloat);
@@ -308,6 +323,8 @@ addParameter(p, 'cellConstraints', defaultCellConstraints);
 addParameter(p, 'cellConstraintFactor', defaultCellConstraintFactor, validFloat);
 addParameter(p, 'cellConstraintLineFactor', defaultCellConstraintLineFactor, @validOptionalFloat);
 addParameter(p, 'cellConstraintPointFactor', defaultCellConstraintPointFactor, @validOptionalFloat);
+addParameter(p, 'minCCThresholdDistance', defaultMinThresholdDistance, validFloat);
+addParameter(p, 'maxCCThresholdDistance', defaultMaxThresholdDistance, validFloat);
 addParameter(p, 'meshAlgorithm', defaultMeshAlgorithm, @validMeshAlgorithm);
 addParameter(p, 'recombinationAlgorithm', defaultRecombinationAlgorithm, @validRecombinationAlgorithm);
 
@@ -315,6 +332,7 @@ addParameter(p, 'recombinationAlgorithm', defaultRecombinationAlgorithm, @validR
 addParameter(p, 'interpolateCC', defaultInterpolateCC, @islogical);
 addParameter(p, 'CCFactor', defaultCCFactor, validFloat);
 addParameter(p, 'CCRefinement', defaultCCRefinement, @islogical);
+addParameter(p, 'CCEps', defaultCCEps, @isfloat);
 addParameter(p, 'CCRho', defaultCCRho);
 addParameter(p, 'protLayer', defaultProtLayer, @islogical);
 addParameter(p, 'protD', defaultProtD);
@@ -349,8 +367,8 @@ py.gmsh4mrst.background_grid_2D(...
     shape = pyShape, ...
     face_constraints = pyFaceConstraints, ...
     face_constraint_factor = params.faceConstraintFactor, ...
-    min_FC_threshold_distance = params.minThresholdDistance, ...
-    max_FC_threshold_distance = params.maxThresholdDistance, ...
+    min_FC_threshold_distance = params.minFCThresholdDistance, ...
+    max_FC_threshold_distance = params.maxFCThresholdDistance, ...
     face_intersection_factor = params.faceIntersectionFactor, ...
     min_intersection_distance = params.minIntersectionDistance, ...
     max_intersection_distance = params.maxIntersectionDistance, ...
@@ -359,8 +377,8 @@ py.gmsh4mrst.background_grid_2D(...
     cell_constraint_factor = params.cellConstraintFactor, ...
     cell_constraint_line_factor = params.cellConstraintLineFactor, ...
     cell_constraint_point_factor = params.cellConstraintPointFactor, ...
-    min_CC_threshold_distance = params.minThresholdDistance, ...
-    max_CC_threshold_distance = params.maxThresholdDistance, ...
+    min_CC_threshold_distance = params.minCCThresholdDistance, ...
+    max_CC_threshold_distance = params.maxCCThresholdDistance, ...
     mesh_algorithm = params.meshAlgorithm, ...
     recombination_algorithm = params.recombinationAlgorithm, ...
     savename = "TEMP_Gmsh_MRST.m");
@@ -382,6 +400,7 @@ CCRef = params.CCRefinement;
 circleFactor = params.circleFactor;
 CCRho = @(x) CCGridSize * params.CCRho(x);
 FCRho = params.FCRho;
+
 
 % Set domain function
 shape = params.shape;
@@ -457,8 +476,8 @@ sePtn = (1.0+faultOffset/CCGridSize)*sePtn;
 
 % Create distance functions
 if CCRef && ~isempty(wellPts)
-    hresw  = @(x) min((ones(size(x,1),1)/CCFactor), ...
-        1.2*exp(minPdist2(x,wellPts)/CCEps));
+    hresw  = @(x) min((ones(size(x,1),1)/params.CCFactor), ...
+        1.2*exp(minPdist2(x,wellPts)/params.CCEps));
     hfault = @(x) CCGridSize*params.faceConstraintFactor*hresw(x).*FCRho(x);
 else
     hfault = @(p) FCGridSize*FCRho(p);
