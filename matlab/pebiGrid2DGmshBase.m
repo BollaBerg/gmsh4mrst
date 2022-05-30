@@ -72,7 +72,7 @@ function G = pebiGrid2DGmshBase(resGridSize, size, varargin)
 %                   value, i.e. the supplied argument resGridSize. Defaults
 %                   to 0.2.
 %
-%   faceMeshSampling - Int. The number of points along the face constraints
+%   FCMeshSampling - Int. The number of points along the face constraints
 %                   should be sampled to calculate the threshold distances.
 %                   Defaults to 100.
 %
@@ -184,7 +184,7 @@ defaultFaceConstraintPointFactor = string(missing);
 defaultFaceConstraintRefinementFactor = string(missing);
 defaultMinFCThresholdDistance = 0.05;
 defaultMaxFCThresholdDistance = 0.2;
-defaultFaceMeshSampling = 100;
+defaultFCMeshSampling = 100;
 defaultCellConstraints = {};
 defaultCellConstraintFactor = 1/4;
 defaultCellConstraintParallelFactor = string(missing);
@@ -254,7 +254,7 @@ addParameter(p, 'faceConstraintPointFactor', defaultFaceConstraintPointFactor, @
 addParameter(p, 'faceConstraintRefinementFactor', defaultFaceConstraintRefinementFactor, @validOptionalFloat);
 addParameter(p, 'minFCThresholdDistance', defaultMinFCThresholdDistance, validFloat);
 addParameter(p, 'maxFCThresholdDistance', defaultMaxFCThresholdDistance, validFloat);
-addParameter(p, 'faceMeshSampling', defaultFaceMeshSampling, validInt);
+addParameter(p, 'FCMeshSampling', defaultFCMeshSampling, validInt);
 addParameter(p, 'cellConstraints', defaultCellConstraints);
 addParameter(p, 'cellConstraintFactor', defaultCellConstraintFactor, validFloat);
 addParameter(p, 'cellConstraintParallelFactor', defaultCellConstraintParallelFactor, @validOptionalFloat);
@@ -298,7 +298,7 @@ py.gmsh4mrst.pebi_base_2D( ...
     face_constraint_refinement_factor = p.Results.faceConstraintRefinementFactor, ...
     min_FC_threshold_distance = p.Results.minFCThresholdDistance, ...
     max_FC_threshold_distance = p.Results.maxFCThresholdDistance, ...
-    face_mesh_sampling = p.Results.faceMeshSampling, ...
+    face_mesh_sampling = p.Results.FCMeshSampling, ...
     cell_constraints = cellConstraints, ...
     cell_constraint_factor = p.Results.cellConstraintFactor, ...
     cell_constraint_parallel_factor = p.Results.cellConstraintParallelFactor, ...
